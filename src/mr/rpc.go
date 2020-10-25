@@ -9,6 +9,26 @@ package mr
 import "os"
 import "strconv"
 
+//
+// 请求任务
+//
+
+type RequestTaskRequest struct {}
+
+type RequestTaskResponse struct {
+	// TODO: 返回状态及任务
+}
+
+//
+// 完成任务
+//
+
+type CompleteTaskRequest struct {
+	TaskId int
+}
+
+type CompleteTaskResponse struct {}
+
 // Cook up a unique-ish UNIX-domain socket name
 // in /var/tmp, for the master.
 // Can't use the current directory since
