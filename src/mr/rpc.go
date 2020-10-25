@@ -13,10 +13,17 @@ import "strconv"
 // 请求任务
 //
 
+const (
+	SUCCESS = 0
+	PENDING = 1
+	DONE    = 2
+)
+
 type RequestTaskRequest struct {}
 
 type RequestTaskResponse struct {
-	// TODO: 返回状态及任务
+	Code int
+	Task MapReduceTask
 }
 
 //
