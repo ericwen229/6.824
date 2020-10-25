@@ -23,6 +23,7 @@ type RequestTaskRequest struct {}
 
 type RequestTaskResponse struct {
 	Code int
+	TaskId int
 	Task MapReduceTask
 }
 

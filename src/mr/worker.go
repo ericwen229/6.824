@@ -1,9 +1,9 @@
 package mr
 
-import "fmt"
 import "log"
 import "net/rpc"
 import "hash/fnv"
+import "time"
 
 //
 // Map functions return a slice of KeyValue.
@@ -28,12 +28,20 @@ func ihash(key string) int {
 //
 func Worker(mapf func(string, string) []KeyValue,
 	reducef func(string, []string) string) {
+	for {
+		var requestTaskResponse RequestTaskResponse
+		if !call("Master.RequestTask", &RequestTaskRequest{}, &requestTaskResponse) {
+			break
+		}
 
-	// Your worker implementation here.
+		// TODO: 执行任务
+		log.Println(requestTaskResponse.TaskId)
 
-	// uncomment to send the Example RPC to the master.
-	// CallExample()
+		var completeTaskResponse CompleteTaskResponse
+		call("Master.CompleteTask", &CompleteTaskRequest{TaskId: requestTaskResponse.TaskId}, &completeTaskResponse)
 
+		time.Sleep(time.Second)
+	}
 }
 
 //
@@ -55,6 +63,6 @@ func call(rpcname string, args interface{}, reply interface{}) bool {
 		return true
 	}
 
-	fmt.Println(err)
+	log.Println(err)
 	return false
 }

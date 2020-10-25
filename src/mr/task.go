@@ -1,5 +1,12 @@
 package mr
 
+import "encoding/gob"
+
+func init() {
+	gob.Register(&MapTask{})
+	gob.Register(&ReduceTask{})
+}
+
 type MapReduceTask interface {
 	Execute(mapf func(string, string) []KeyValue, reducef func(string, []string) string) error
 }
