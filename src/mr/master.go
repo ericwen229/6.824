@@ -1,29 +1,22 @@
 package mr
 
-import "log"
-import "net"
-import "os"
-import "net/rpc"
-import "net/http"
-
+import (
+	"fmt"
+	"log"
+	"net"
+	"net/http"
+	"net/rpc"
+	"os"
+	"sync"
+)
 
 type Master struct {
-	// Your definitions here.
-
+	mutex              sync.Mutex
+	pendingMapTasks    map[int]*MapTask
+	runningMapTasks    map[int]*MapTask
+	pendingReduceTasks map[int]*ReduceTask
+	runningReduceTasks map[int]*ReduceTask
 }
-
-// Your code here -- RPC handlers for the worker to call.
-
-//
-// an example RPC handler.
-//
-// the RPC argument and reply types are defined in rpc.go.
-//
-func (m *Master) Example(args *ExampleArgs, reply *ExampleReply) error {
-	reply.Y = args.X + 1
-	return nil
-}
-
 
 //
 // start a thread that listens for RPCs from worker.go
@@ -46,12 +39,12 @@ func (m *Master) server() {
 // if the entire job has finished.
 //
 func (m *Master) Done() bool {
-	ret := false
-
-	// Your code here.
-
-
-	return ret
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	return len(m.pendingMapTasks) == 0 &&
+		len(m.runningMapTasks) == 0 &&
+		len(m.pendingReduceTasks) == 0 &&
+		len(m.runningReduceTasks) == 0
 }
 
 //
@@ -60,10 +53,36 @@ func (m *Master) Done() bool {
 // nReduce is the number of reduce tasks to use.
 //
 func MakeMaster(files []string, nReduce int) *Master {
-	m := Master{}
+	intermediateFilePathTmpl := "mr-%d-%d"
+	outputFilePathTmpl := "mr-out-%d"
 
-	// Your code here.
+	m := Master{
+		pendingMapTasks:    map[int]*MapTask{},
+		runningMapTasks:    map[int]*MapTask{},
+		pendingReduceTasks: map[int]*ReduceTask{},
+		runningReduceTasks: map[int]*ReduceTask{},
+	}
 
+	for iMap, file := range files {
+		m.pendingMapTasks[iMap] = &MapTask{
+			id:                 iMap,
+			inputFilePath:      file,
+			nReduce:            nReduce,
+			outputFilePathTmpl: intermediateFilePathTmpl,
+		}
+	}
+
+	for iReduce := 0; iReduce < nReduce; iReduce++ {
+		var inputFilePaths []string
+		for iMap := 0; iMap < len(files); iMap++ {
+			inputFilePaths = append(inputFilePaths, fmt.Sprintf(intermediateFilePathTmpl, iMap, iReduce))
+		}
+		m.pendingReduceTasks[iReduce] = &ReduceTask{
+			id:             iReduce,
+			inputFilePaths: inputFilePaths,
+			outputFilePath: fmt.Sprintf(outputFilePathTmpl, iReduce),
+		}
+	}
 
 	m.server()
 	return &m
