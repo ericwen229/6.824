@@ -55,7 +55,9 @@ func Worker(mapf func(string, string) []KeyValue,
 			log.Println("error response from master, aborting")
 			return
 		case SUCCESS:
-			handleTask(&requestTaskResponse, mapf, reducef)
+			if err := handleTask(&requestTaskResponse, mapf, reducef); err != nil {
+				log.Fatal("handle task failure: ", err)
+			}
 		case PENDING:
 			log.Println("master pending for map tasks, waiting")
 		case DONE:
@@ -70,20 +72,20 @@ func Worker(mapf func(string, string) []KeyValue,
 func handleTask(
 	requestTaskResponse *RequestTaskResponse,
 	mapf func(string, string) []KeyValue,
-	reducef func(string, []string) string) {
+	reducef func(string, []string) string) error {
 	if (requestTaskResponse.IsMapTask) {
 		log.Printf("processing map task #%d", requestTaskResponse.TaskId)
 
 		mapTask := requestTaskResponse.Task.MTask
-		if !handleMapTask(mapTask, mapf) {
-			return
+		if err := handleMapTask(mapTask, mapf); err != nil {
+			return err
 		}
 	} else {
 		log.Printf("processing reduce task #%d", requestTaskResponse.TaskId)
 
 		reduceTask := requestTaskResponse.Task.RTask
-		if !handleReduceTask(reduceTask, reducef) {
-			return
+		if err := handleReduceTask(reduceTask, reducef); err != nil {
+			return err
 		}
 	}
 
@@ -95,6 +97,7 @@ func handleTask(
 			TaskId: requestTaskResponse.TaskId,
 		},
 		&completeTaskResponse)
+	return nil
 }
 
 //
@@ -118,11 +121,11 @@ func readFile(path string) (string, error) {
 //
 // 执行map任务
 //
-func handleMapTask(task *MapTask, mapf func(string, string) []KeyValue) bool {
+func handleMapTask(task *MapTask, mapf func(string, string) []KeyValue) error {
 	// 读单个输入文件
 	fileContent, err := readFile(task.InputFilePath)
 	if err != nil {
-		return false
+		return err
 	}
 
 	// 执行map操作
@@ -142,24 +145,24 @@ func handleMapTask(task *MapTask, mapf func(string, string) []KeyValue) bool {
 		outputFilePath := fmt.Sprintf(task.OutputFilePathTmpl, task.IMap, iReduce)
 		bucket := buckets[iReduce]
 		if err := writeKVPairs(bucket, outputFilePath); err != nil {
-			return false
+			return err
 		}
 	}
 
-	return true
+	return nil
 }
 
 //
 // 执行reduce任务
 //
-func handleReduceTask(task *ReduceTask, reducef func(string, []string) string) bool {
+func handleReduceTask(task *ReduceTask, reducef func(string, []string) string) error {
 	var kvPairs []KeyValue
 
 	// 读多个输入文件
 	for _, inputFilePath := range task.InputFilePaths {
 		pairs, err := readKVPairs(inputFilePath)
 		if err != nil {
-			return false
+			return err
 		}
 		kvPairs = append(kvPairs, pairs...)
 	}
@@ -170,7 +173,7 @@ func handleReduceTask(task *ReduceTask, reducef func(string, []string) string) b
 	outputFile, err := ioutil.TempFile(".", ".tmp-")
 	defer outputFile.Close()
 	if err != nil {
-		return false
+		return err
 	}
 
 	i := 0
@@ -195,17 +198,17 @@ func handleReduceTask(task *ReduceTask, reducef func(string, []string) string) b
 		// 不过为了省事就用了框架代码中的实现
 		_, err := fmt.Fprintf(outputFile, "%v %v\n", kvPairs[i].Key, output)
 		if err != nil {
-			return false
+			return err
 		}
 
 		i = j
 	}
 
 	if err := os.Rename(outputFile.Name(), task.OutputFilePath); err != nil {
-		return false
+		return err
 	}
 
-	return true
+	return nil
 }
 
 //
