@@ -167,7 +167,7 @@ func handleReduceTask(task *ReduceTask, reducef func(string, []string) string) b
 	// 键值对按key排序
 	sort.Sort(ByKey(kvPairs))
 
-	outputFile, err := os.Create(task.OutputFilePath)
+	outputFile, err := ioutil.TempFile(".", ".tmp-")
 	defer outputFile.Close()
 	if err != nil {
 		return false
@@ -200,6 +200,11 @@ func handleReduceTask(task *ReduceTask, reducef func(string, []string) string) b
 
 		i = j
 	}
+
+	if err := os.Rename(outputFile.Name(), task.OutputFilePath); err != nil {
+		return false
+	}
+
 	return true
 }
 
@@ -207,7 +212,7 @@ func handleReduceTask(task *ReduceTask, reducef func(string, []string) string) b
 // 将json编码的键值对写入文件
 //
 func writeKVPairs(kvPairs []KeyValue, filePath string) error {
-	file, err := os.Create(filePath)
+	file, err := ioutil.TempFile(".", ".tmp-")
 	defer file.Close()
 	if err != nil {
 		return err
@@ -221,6 +226,10 @@ func writeKVPairs(kvPairs []KeyValue, filePath string) error {
 		}
 	}
 
+	if err := os.Rename(file.Name(), filePath); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -230,13 +239,13 @@ func writeKVPairs(kvPairs []KeyValue, filePath string) error {
 func readKVPairs(filePath string) ([]KeyValue, error) {
 	var kvPairs []KeyValue
 
-	file, err := os.Open(filePath)
-	defer file.Close()
+	outputFile, err := os.Open(filePath)
+	defer outputFile.Close()
 	if err != nil {
 		return nil, err
 	}
 
-	dec := json.NewDecoder(file)
+	dec := json.NewDecoder(outputFile)
 	for {
 		var kv KeyValue
 		if err := dec.Decode(&kv); err != nil {
