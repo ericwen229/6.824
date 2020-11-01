@@ -58,7 +58,6 @@ func Worker(mapf func(string, string) []KeyValue,
 			handleTask(&requestTaskResponse, mapf, reducef)
 		case PENDING:
 			log.Println("master pending for map tasks, waiting")
-			continue
 		case DONE:
 			log.Println("all tasks complete, exiting")
 			return
