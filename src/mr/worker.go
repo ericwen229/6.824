@@ -1,9 +1,16 @@
 package mr
 
-import "log"
-import "net/rpc"
-import "hash/fnv"
-import "time"
+import (
+	"encoding/json"
+	"fmt"
+	"io/ioutil"
+	"log"
+	"net/rpc"
+	"hash/fnv"
+	"os"
+	"sort"
+	"time"
+)
 
 //
 // Map functions return a slice of KeyValue.
@@ -12,6 +19,14 @@ type KeyValue struct {
 	Key   string
 	Value string
 }
+
+// for sorting by key.
+type ByKey []KeyValue
+
+// for sorting by key.
+func (a ByKey) Len() int           { return len(a) }
+func (a ByKey) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a ByKey) Less(i, j int) bool { return a[i].Key < a[j].Key }
 
 //
 // use ihash(key) % NReduce to choose the reduce
@@ -83,14 +98,131 @@ func handleTask(
 		&completeTaskResponse)
 }
 
+func readFile(path string) (string, error) {
+	file, err := os.Open(path)
+	defer file.Close()
+	if err != nil {
+		return "", err
+	}
+	
+	content, err := ioutil.ReadAll(file)
+	if err != nil {
+		return "", err
+	} else {
+		return string(content), nil
+	}
+}
+
 func handleMapTask(task *MapTask, mapf func(string, string) []KeyValue) bool {
-	// TODO
+	fileContent, err := readFile(task.InputFilePath)
+	if err != nil {
+		return false
+	}
+
+	mapResult := mapf(task.InputFilePath, fileContent)
+
+	bucketCount := task.NReduce
+	buckets := make([][]KeyValue, bucketCount)
+
+	for _, pair := range mapResult {
+		bucketNo := ihash(pair.Key) % bucketCount
+		buckets[bucketNo] = append(buckets[bucketNo], pair)
+	}
+
+	for iReduce := 0; iReduce < bucketCount; iReduce++ {
+		outputFilePath := fmt.Sprintf(task.OutputFilePathTmpl, task.IMap, iReduce)
+		bucket := buckets[iReduce]
+		if err := writeKVPairs(bucket, outputFilePath); err != nil {
+			return false
+		}
+	}
+
 	return true
 }
 
 func handleReduceTask(task *ReduceTask, reducef func(string, []string) string) bool {
-	// TODO
+	var kvPairs []KeyValue
+	for _, inputFilePath := range task.InputFilePaths {
+		pairs, err := readKVPairs(inputFilePath)
+		if err != nil {
+			return false
+		}
+		kvPairs = append(kvPairs, pairs...)
+	}
+
+	sort.Sort(ByKey(kvPairs))
+
+	outputFile, err := os.Create(task.OutputFilePath)
+	defer outputFile.Close()
+	if err != nil {
+		return false
+	}
+
+	i := 0
+	for i < len(kvPairs) {
+		// 找到key相同的下标区间[i,j)
+		j := i + 1
+		for j < len(kvPairs) && kvPairs[j].Key == kvPairs[i].Key {
+			j++
+		}
+
+		// 提取所有的value
+		values := []string{}
+		for k := i; k < j; k++ {
+			values = append(values, kvPairs[k].Value)
+		}
+
+		// 调用reduce
+		output := reducef(kvPairs[i].Key, values)
+
+		// 输出结果
+		_, err := fmt.Fprintf(outputFile, "%v %v\n", kvPairs[i].Key, output)
+		if err != nil {
+			return false
+		}
+
+		i = j
+	}
 	return true
+}
+
+func writeKVPairs(kvPairs []KeyValue, filePath string) error {
+	file, err := os.Create(filePath)
+	defer file.Close()
+	if err != nil {
+		return err
+	}
+
+	enc := json.NewEncoder(file)
+	for _, kv := range kvPairs {
+		err := enc.Encode(&kv)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func readKVPairs(filePath string) ([]KeyValue, error) {
+	var kvPairs []KeyValue
+
+	file, err := os.Open(filePath)
+	defer file.Close()
+	if err != nil {
+		return nil, err
+	}
+
+	dec := json.NewDecoder(file)
+	for {
+		var kv KeyValue
+		if err := dec.Decode(&kv); err != nil {
+			break
+		}
+		kvPairs = append(kvPairs, kv)
+	}
+
+	return kvPairs, nil
 }
 
 //

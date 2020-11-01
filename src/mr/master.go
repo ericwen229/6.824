@@ -12,8 +12,8 @@ import (
 )
 
 type Master struct {
-	// 其实map任务和reduce任务可以分开调度
-	// 用单个互斥锁管理实现较为简单
+	// 其实map任务和reduce任务可以分两把锁
+	// 一把锁实现较为简单
 	mutex              sync.Mutex
 	PendingMapTasks    map[int]*MapTask
 	RunningMapTasks    map[int]*MapTask
@@ -191,8 +191,6 @@ func MakeMaster(files []string, nReduce int) *Master {
 		}
 		taskId++
 	}
-
-	// TODO: 打印调试
 
 	m.server()
 	return &m
