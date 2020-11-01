@@ -31,17 +31,66 @@ func Worker(mapf func(string, string) []KeyValue,
 	for {
 		var requestTaskResponse RequestTaskResponse
 		if !call("Master.RequestTask", &RequestTaskRequest{}, &requestTaskResponse) {
-			break
+			log.Println("fail to request task from master, aborting")
+			return
 		}
 
-		// TODO: 执行任务
-		log.Println(requestTaskResponse.TaskId)
+		switch (requestTaskResponse.Code) {
+		case ERROR:
+			log.Println("error response from master, aborting")
+			return
+		case SUCCESS:
+			handleTask(&requestTaskResponse, mapf, reducef)
+		case PENDING:
+			log.Println("master pending for map tasks, waiting")
+			continue
+		case DONE:
+			log.Println("all tasks complete, exiting")
+			return
+		}
 
-		var completeTaskResponse CompleteTaskResponse
-		call("Master.CompleteTask", &CompleteTaskRequest{TaskId: requestTaskResponse.TaskId}, &completeTaskResponse)
-
-		time.Sleep(time.Second)
+		time.Sleep(500 * time.Millisecond)
 	}
+}
+
+func handleTask(
+	requestTaskResponse *RequestTaskResponse,
+	mapf func(string, string) []KeyValue,
+	reducef func(string, []string) string) {
+	if (requestTaskResponse.IsMapTask) {
+		log.Printf("processing map task #%d", requestTaskResponse.TaskId)
+
+		mapTask := requestTaskResponse.Task.MTask
+		if !handleMapTask(mapTask, mapf) {
+			return
+		}
+	} else {
+		log.Printf("processing reduce task #%d", requestTaskResponse.TaskId)
+
+		reduceTask := requestTaskResponse.Task.RTask
+		if !handleReduceTask(reduceTask, reducef) {
+			return
+		}
+	}
+
+	var completeTaskResponse CompleteTaskResponse
+	call(
+		"Master.CompleteTask",
+		&CompleteTaskRequest{
+			IsMapTask: requestTaskResponse.IsMapTask,
+			TaskId: requestTaskResponse.TaskId,
+		},
+		&completeTaskResponse)
+}
+
+func handleMapTask(task *MapTask, mapf func(string, string) []KeyValue) bool {
+	// TODO
+	return true
+}
+
+func handleReduceTask(task *ReduceTask, reducef func(string, []string) string) bool {
+	// TODO
+	return true
 }
 
 //

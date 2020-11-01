@@ -14,17 +14,19 @@ import "strconv"
 //
 
 const (
+	ERROR   = -1
 	SUCCESS = 0
 	PENDING = 1
 	DONE    = 2
 )
 
-type RequestTaskRequest struct {}
+type RequestTaskRequest struct{}
 
 type RequestTaskResponse struct {
-	Code int
-	TaskId int
-	Task MapReduceTask
+	Code      int
+	IsMapTask bool
+	TaskId    int
+	Task      *MapReduceTask
 }
 
 //
@@ -32,10 +34,11 @@ type RequestTaskResponse struct {
 //
 
 type CompleteTaskRequest struct {
-	TaskId int
+	IsMapTask bool
+	TaskId    int
 }
 
-type CompleteTaskResponse struct {}
+type CompleteTaskResponse struct{}
 
 // Cook up a unique-ish UNIX-domain socket name
 // in /var/tmp, for the master.

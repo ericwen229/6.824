@@ -15,10 +15,10 @@ type Master struct {
 	// 其实map任务和reduce任务可以分开调度
 	// 用单个互斥锁管理实现较为简单
 	mutex              sync.Mutex
-	PendingMapTasks    map[int]MapReduceTask
-	RunningMapTasks    map[int]MapReduceTask
-	PendingReduceTasks map[int]MapReduceTask
-	RunningReduceTasks map[int]MapReduceTask
+	PendingMapTasks    map[int]*MapTask
+	RunningMapTasks    map[int]*MapTask
+	PendingReduceTasks map[int]*ReduceTask
+	RunningReduceTasks map[int]*ReduceTask
 }
 
 //
@@ -57,13 +57,23 @@ func (m *Master) RequestTask(req *RequestTaskRequest, resp *RequestTaskResponse)
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
-	if len(m.PendingMapTasks) > 0 {  // 分发map任务
+	// 默认响应
+	resp.Code = ERROR
+	resp.IsMapTask = false
+	resp.TaskId = -1
+	resp.Task = nil
+
+	if len(m.PendingMapTasks) > 0 { // 分发map任务
 		resp.Code = SUCCESS
 		for k, v := range m.PendingMapTasks {
 			// 返回任务
+			resp.IsMapTask = true
 			resp.TaskId = k
-			resp.Task = v
-			
+			resp.Task = &MapReduceTask{
+				MTask: v,
+				RTask: nil,
+			}
+
 			// 更新任务状态为running
 			delete(m.PendingMapTasks, k)
 			m.RunningMapTasks[k] = v
@@ -83,17 +93,19 @@ func (m *Master) RequestTask(req *RequestTaskRequest, resp *RequestTaskResponse)
 			}()
 			break
 		}
-	} else if len(m.RunningMapTasks) > 0 {  // 等待
+	} else if len(m.RunningMapTasks) > 0 { // 等待
 		resp.Code = PENDING
-		resp.TaskId = -1
-		resp.Task = nil
-	} else if len(m.PendingReduceTasks) > 0 {  // 分发reduce任务
+	} else if len(m.PendingReduceTasks) > 0 { // 分发reduce任务
 		resp.Code = SUCCESS
 		for k, v := range m.PendingReduceTasks {
 			// 返回任务
+			resp.IsMapTask = false
 			resp.TaskId = k
-			resp.Task = v
-			
+			resp.Task = &MapReduceTask{
+				MTask: nil,
+				RTask: v,
+			}
+
 			// 更新任务状态为running
 			delete(m.PendingReduceTasks, k)
 			m.RunningReduceTasks[k] = v
@@ -113,14 +125,10 @@ func (m *Master) RequestTask(req *RequestTaskRequest, resp *RequestTaskResponse)
 			}()
 			break
 		}
-	} else if len(m.RunningReduceTasks) > 0 {  // 等待
+	} else if len(m.RunningReduceTasks) > 0 { // 等待
 		resp.Code = PENDING
-		resp.TaskId = -1
-		resp.Task = nil
-	} else {  // 所有任务已完成
+	} else { // 所有任务已完成
 		resp.Code = DONE
-		resp.TaskId = -1
-		resp.Task = nil
 	}
 	return nil
 }
@@ -132,10 +140,13 @@ func (m *Master) CompleteTask(req *CompleteTaskRequest, resp *CompleteTaskRespon
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
-	delete(m.PendingMapTasks, req.TaskId)
-	delete(m.RunningMapTasks, req.TaskId)
-	delete(m.PendingReduceTasks, req.TaskId)
-	delete(m.RunningReduceTasks, req.TaskId)
+	if req.IsMapTask {
+		delete(m.PendingMapTasks, req.TaskId)
+		delete(m.RunningMapTasks, req.TaskId)
+	} else {
+		delete(m.PendingReduceTasks, req.TaskId)
+		delete(m.RunningReduceTasks, req.TaskId)
+	}
 	return nil
 }
 
@@ -149,10 +160,10 @@ func MakeMaster(files []string, nReduce int) *Master {
 	outputFilePathTmpl := "mr-out-%d"
 
 	m := Master{
-		PendingMapTasks:    map[int]MapReduceTask{},
-		RunningMapTasks:    map[int]MapReduceTask{},
-		PendingReduceTasks: map[int]MapReduceTask{},
-		RunningReduceTasks: map[int]MapReduceTask{},
+		PendingMapTasks:    map[int]*MapTask{},
+		RunningMapTasks:    map[int]*MapTask{},
+		PendingReduceTasks: map[int]*ReduceTask{},
+		RunningReduceTasks: map[int]*ReduceTask{},
 	}
 
 	// 创建pending中的map任务
@@ -170,7 +181,7 @@ func MakeMaster(files []string, nReduce int) *Master {
 	// 创建pending中的reduce任务
 	for iReduce := 0; iReduce < nReduce; iReduce++ {
 		var inputFilePaths []string
-		for iMap := 0; iMap < len(files); iMap++ {  // 每个reduce任务都要接收来自每一个map任务的输出作为输入
+		for iMap := 0; iMap < len(files); iMap++ { // 每个reduce任务都要接收来自每一个map任务的输出作为输入
 			inputFilePaths = append(inputFilePaths, fmt.Sprintf(intermediateFilePathTmpl, iMap, iReduce))
 		}
 		m.PendingReduceTasks[taskId] = &ReduceTask{
