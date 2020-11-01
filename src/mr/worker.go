@@ -97,6 +97,9 @@ func handleTask(
 		&completeTaskResponse)
 }
 
+//
+// 读取文件所有内容
+//
 func readFile(path string) (string, error) {
 	file, err := os.Open(path)
 	defer file.Close()
@@ -112,22 +115,29 @@ func readFile(path string) (string, error) {
 	}
 }
 
+//
+// 执行map任务
+//
 func handleMapTask(task *MapTask, mapf func(string, string) []KeyValue) bool {
+	// 读单个输入文件
 	fileContent, err := readFile(task.InputFilePath)
 	if err != nil {
 		return false
 	}
 
+	// 执行map操作
 	mapResult := mapf(task.InputFilePath, fileContent)
 
 	bucketCount := task.NReduce
 	buckets := make([][]KeyValue, bucketCount)
 
+	// 分堆
 	for _, pair := range mapResult {
 		bucketNo := ihash(pair.Key) % bucketCount
 		buckets[bucketNo] = append(buckets[bucketNo], pair)
 	}
 
+	// 写文件
 	for iReduce := 0; iReduce < bucketCount; iReduce++ {
 		outputFilePath := fmt.Sprintf(task.OutputFilePathTmpl, task.IMap, iReduce)
 		bucket := buckets[iReduce]
@@ -139,8 +149,13 @@ func handleMapTask(task *MapTask, mapf func(string, string) []KeyValue) bool {
 	return true
 }
 
+//
+// 执行reduce任务
+//
 func handleReduceTask(task *ReduceTask, reducef func(string, []string) string) bool {
 	var kvPairs []KeyValue
+
+	// 读多个输入文件
 	for _, inputFilePath := range task.InputFilePaths {
 		pairs, err := readKVPairs(inputFilePath)
 		if err != nil {
@@ -149,6 +164,7 @@ func handleReduceTask(task *ReduceTask, reducef func(string, []string) string) b
 		kvPairs = append(kvPairs, pairs...)
 	}
 
+	// 键值对按key排序
 	sort.Sort(ByKey(kvPairs))
 
 	outputFile, err := os.Create(task.OutputFilePath)
@@ -174,7 +190,9 @@ func handleReduceTask(task *ReduceTask, reducef func(string, []string) string) b
 		// 调用reduce
 		output := reducef(kvPairs[i].Key, values)
 
-		// 输出结果
+		// 写文件
+		// 这里调用完集中写文件会好一些
+		// 不过为了省事就用了框架代码中的实现
 		_, err := fmt.Fprintf(outputFile, "%v %v\n", kvPairs[i].Key, output)
 		if err != nil {
 			return false
@@ -185,6 +203,9 @@ func handleReduceTask(task *ReduceTask, reducef func(string, []string) string) b
 	return true
 }
 
+//
+// 将json编码的键值对写入文件
+//
 func writeKVPairs(kvPairs []KeyValue, filePath string) error {
 	file, err := os.Create(filePath)
 	defer file.Close()
@@ -203,6 +224,9 @@ func writeKVPairs(kvPairs []KeyValue, filePath string) error {
 	return nil
 }
 
+//
+// 从文件中读取json编码的键值对
+//
 func readKVPairs(filePath string) ([]KeyValue, error) {
 	var kvPairs []KeyValue
 

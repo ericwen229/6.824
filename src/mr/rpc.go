@@ -40,6 +40,28 @@ type CompleteTaskRequest struct {
 
 type CompleteTaskResponse struct{}
 
+//
+// 任务定义
+//
+
+type MapReduceTask struct {
+	MTask *MapTask
+	RTask *ReduceTask
+}
+
+type MapTask struct {
+	IMap               int
+	InputFilePath      string
+	NReduce            int
+	OutputFilePathTmpl string
+}
+
+type ReduceTask struct {
+	IReduce        int
+	InputFilePaths []string
+	OutputFilePath string
+}
+
 // Cook up a unique-ish UNIX-domain socket name
 // in /var/tmp, for the master.
 // Can't use the current directory since
