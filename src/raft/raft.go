@@ -19,8 +19,8 @@ package raft
 
 import (
 	"../labrpc"
-	"log"
-	"math/rand"
+	// "log"
+	// "math/rand"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -84,7 +84,7 @@ type Raft struct {
 	votedFor    int
 
 	// TODO: 记录follower/candidate上一次收到心跳的时间
-	// TODO: 记录master上一次发送心跳的时间
+	// TODO: 记录leader上一次发送心跳的时间
 }
 
 // return currentTerm and whether this server
@@ -258,21 +258,32 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.currentTerm = 0
 	rf.votedFor = -1
 
-	// TODO: follower检查election timeout
-	// TODO: candidate执行election
-	// TODO: leader发送心跳
+	// follower/candidate检查election timeout
+	// 触发时发起election
 	go func() {
 		for !rf.killed() {
-			currentTerm, isLeader := rf.GetState()
-			if (isLeader) {
-				// TODO: 定时发送心跳
-			} else {
-				// TODO: election timeout触发时发起election
+			time.Sleep(time.Duration(checkIntervalMS) * time.Millisecond)
+			_, isLeader := rf.GetState()
+			if isLeader {
+				continue
 			}
 
-			time.Sleep(time.Duration(checkIntervalMS) * time.Millisecond)
+			// TODO: 检查election timeout
 		}
-	}
+	}()
+
+	// leader发送心跳
+	go func() {
+		for !rf.killed() {
+			time.Sleep(time.Duration(checkIntervalMS) * time.Millisecond)
+			_, isLeader := rf.GetState()
+			if !isLeader {
+				continue
+			}
+
+			// TODO: 发送心跳（如果需要的话）
+		}
+	}()
 
 	// initialize from state persisted before a crash
 	rf.readPersist(persister.ReadRaftState())
