@@ -17,9 +17,14 @@ package raft
 //   in the same server.
 //
 
-import "sync"
-import "sync/atomic"
-import "../labrpc"
+import (
+	"../labrpc"
+	"log"
+	"math/rand"
+	"sync"
+	"sync/atomic"
+	"time"
+)
 
 // import "bytes"
 // import "../labgob"
@@ -47,10 +52,18 @@ type ApplyMsg struct {
 type RaftServerState int
 
 const (
-	Leader    RaftServerState = 0
-	Follower                  = 1
-	Candidate                 = 2
+	leader    RaftServerState = 0
+	follower                  = 1
+	candidate                 = 2
 )
+
+//
+// 时间常量
+//
+const checkIntervalMS int = 10
+const electionTimeoutLowerMS int = 200
+const electionTimeoutRangeMS int = 300
+const heartbeatIntervalMS int = 100
 
 //
 // A Go object implementing a single Raft peer.
@@ -69,6 +82,9 @@ type Raft struct {
 	state       RaftServerState
 	currentTerm int
 	votedFor    int
+
+	// TODO: 记录follower/candidate上一次收到心跳的时间
+	// TODO: 记录master上一次发送心跳的时间
 }
 
 // return currentTerm and whether this server
@@ -76,7 +92,7 @@ type Raft struct {
 func (rf *Raft) GetState() (int, bool) {
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
-	return currentTerm, state == Leader
+	return rf.currentTerm, rf.state == leader
 }
 
 //
@@ -238,11 +254,25 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.me = me
 
 	// Your initialization code here (2A, 2B, 2C).
-	rf.state = Follower
+	rf.state = follower
 	rf.currentTerm = 0
 	rf.votedFor = -1
 
-	// TODO: 创建goroutine管理election
+	// TODO: follower检查election timeout
+	// TODO: candidate执行election
+	// TODO: leader发送心跳
+	go func() {
+		for !rf.killed() {
+			currentTerm, isLeader := rf.GetState()
+			if (isLeader) {
+				// TODO: 定时发送心跳
+			} else {
+				// TODO: election timeout触发时发起election
+			}
+
+			time.Sleep(time.Duration(checkIntervalMS) * time.Millisecond)
+		}
+	}
 
 	// initialize from state persisted before a crash
 	rf.readPersist(persister.ReadRaftState())
