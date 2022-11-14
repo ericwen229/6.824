@@ -34,18 +34,18 @@ type Task struct {
 type TaskType int8
 
 const (
-	TASK_MAP    TaskType = 1
-	TASK_REDUCE TaskType = 2
+	TaskMap    TaskType = 1
+	TaskReduce TaskType = 2
 )
 
 type MapTask struct {
 	File    string
-	NoMap   int
+	IMap    int
 	NReduce int
 }
 type ReduceTask struct {
-	NMap     int
-	NoReduce int
+	NMap    int
+	IReduce int
 }
 
 func (c *Coordinator) RequestTask(req *RequestTaskReq, resp *RequestTaskResp) error {
@@ -146,10 +146,10 @@ func MakeCoordinator(files []string, nReduce int) *Coordinator {
 	for iMap, file := range files {
 		mapTaskList = append(mapTaskList, &Task{
 			ID:   0, // set later
-			Type: TASK_MAP,
+			Type: TaskMap,
 			MapTask: &MapTask{
 				File:    file,
-				NoMap:   iMap,
+				IMap:    iMap,
 				NReduce: reduceTaskNum,
 			},
 			ReduceTask: nil,
@@ -160,11 +160,11 @@ func MakeCoordinator(files []string, nReduce int) *Coordinator {
 	for iReduce := 0; iReduce < reduceTaskNum; iReduce++ {
 		reduceTaskList = append(reduceTaskList, &Task{
 			ID:      0, // set later
-			Type:    TASK_REDUCE,
+			Type:    TaskReduce,
 			MapTask: nil,
 			ReduceTask: &ReduceTask{
-				NMap:     mapTaskNum,
-				NoReduce: iReduce,
+				NMap:    mapTaskNum,
+				IReduce: iReduce,
 			},
 		})
 	}
