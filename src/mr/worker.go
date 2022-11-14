@@ -31,13 +31,12 @@ func iHash(key string) int {
 
 func Worker(mapF func(string, string) []KeyValue,
 	reduceF func(string, []string) string) {
-	lastCompleteTaskId := 0
+	lastCompleteTaskId := -1
 	for {
-		req := &RequestTaskReq{}
-		resp := &RequestTaskResp{}
-		if lastCompleteTaskId != 0 {
-			req.CompleteTaskId = &lastCompleteTaskId
+		req := &RequestTaskReq{
+			lastCompleteTaskId,
 		}
+		resp := &RequestTaskResp{}
 
 		err := call("Coordinator.RequestTask", req, resp)
 		if err != nil {
@@ -56,7 +55,7 @@ func Worker(mapF func(string, string) []KeyValue,
 			if err == nil {
 				lastCompleteTaskId = resp.Task.ID
 			} else {
-				lastCompleteTaskId = 0
+				lastCompleteTaskId = -1
 			}
 		}
 	}

@@ -10,7 +10,7 @@ import "os"
 import "strconv"
 
 type RequestTaskReq struct {
-	CompleteTaskId *int
+	CompleteTaskId int
 }
 type RequestTaskResp struct {
 	IsDone bool

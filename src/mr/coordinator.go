@@ -52,8 +52,8 @@ func (c *Coordinator) RequestTask(req *RequestTaskReq, resp *RequestTaskResp) er
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
-	if req.CompleteTaskId != nil {
-		c.completeTask(*req.CompleteTaskId)
+	if req.CompleteTaskId >= 0 {
+		c.completeTask(req.CompleteTaskId)
 	}
 
 	if c.Done() {
@@ -101,12 +101,14 @@ func (c *Coordinator) selectTask() *Task {
 	for i := start; i < end; i++ {
 		if c.taskBeginTime[i] == 0 {
 			// task state: initial
+			c.taskBeginTime[i] = time.Now().Unix()
 			return c.taskList[i]
 		} else if c.taskBeginTime[i] < 0 {
 			// task state: completed
 			continue
 		} else if time.Now().Unix()-c.taskBeginTime[i] > 10 {
 			// task state: started && timeout
+			c.taskBeginTime[i] = time.Now().Unix()
 			return c.taskList[i]
 		}
 	}
