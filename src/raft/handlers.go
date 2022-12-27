@@ -3,11 +3,16 @@ package raft
 import "time"
 
 type AppendEntriesArgs struct {
-	Term int
+	Term         int
+	PrevLogIndex int
+	PrevLogTerm  int
+	Entries      []*LogItem
+	LeaderCommit int
 }
 
 type AppendEntriesReply struct {
-	Term int
+	Term    int
+	Success bool
 }
 
 func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply) {

@@ -15,8 +15,8 @@ const (
 )
 
 type LogItem struct {
-	command interface{}
-	term    int
+	Command interface{}
+	Term    int
 }
 
 // Raft implements a single Raft peer.
@@ -82,10 +82,10 @@ func (rf *Raft) convertToLeader() {
 	rf.matchIndex = make([]int, peerNum)
 }
 
-func (rf *Raft) appendLogItem(command any) {
+func (rf *Raft) appendLogItem(command interface{}) {
 	rf.log = append(rf.log, &LogItem{
-		command: command,
-		term:    rf.currentTerm,
+		Command: command,
+		Term:    rf.currentTerm,
 	})
 }
 
@@ -95,4 +95,24 @@ func (rf *Raft) isLeader() bool {
 
 func (rf *Raft) getLastLogIndex() int {
 	return len(rf.log)
+}
+
+func (rf *Raft) isValidLogIndex(index int) bool {
+	return index >= 1 && index <= rf.getLastLogIndex()
+}
+
+func (rf *Raft) getEntriesToSend(nextIndex int) []*LogItem {
+	if rf.isValidLogIndex(nextIndex) {
+		return rf.getEntries(nextIndex)
+	} else {
+		return nil
+	}
+}
+
+func (rf *Raft) getEntry(index int) *LogItem {
+	return rf.log[index-1]
+}
+
+func (rf *Raft) getEntries(from int) []*LogItem {
+	return rf.log[from-1:]
 }

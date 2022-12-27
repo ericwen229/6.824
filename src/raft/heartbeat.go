@@ -12,45 +12,82 @@ func (rf *Raft) heartbeatLoop() {
 
 		// >>>>> CRITICAL SECTION >>>>>
 		rf.mu.Lock()
-		term := rf.currentTerm
 		role := rf.role
 		rf.mu.Unlock()
 		// >>>>> CRITICAL SECTION >>>>>
 
 		if role == roleLeader {
-			rf.broadcastHeartbeat(term)
+			rf.broadcastHeartbeat()
 		}
 		time.Sleep(heartbeatInterval)
 	}
 }
 
-func (rf *Raft) broadcastHeartbeat(term int) {
+func (rf *Raft) broadcastHeartbeat() {
 	for i, peer := range rf.peers {
 		if rf.me == i {
 			continue
 		}
 
-		go func(peer *labrpc.ClientEnd) {
+		go func(i int, peer *labrpc.ClientEnd) {
+			// 1 2 3 4 5
+			// a b c d e
+			// nextIndex = 2
+			// matchIndex = 0
+			// entriesToSend = b c d e
+			// prevLogIndex = 1
+			// prevLogTerm = ...
+			// newNextIndex = 6
+			// newMatchIndex = 5
+
+			rf.mu.Lock()
+			nextIndex := rf.nextIndex[i]
+			entriesToSend := rf.getEntriesToSend(nextIndex)
+			prevLogIndex := nextIndex - 1
+			prevLogTerm := NilTerm
+			if rf.isValidLogIndex(prevLogIndex) {
+				prevLogTerm = rf.getEntry(prevLogIndex).Term
+			}
+			args := &AppendEntriesArgs{
+				Term:         rf.currentTerm,
+				PrevLogIndex: prevLogIndex,
+				PrevLogTerm:  prevLogTerm,
+				Entries:      entriesToSend,
+				LeaderCommit: rf.commitIndex,
+			}
+			rf.mu.Unlock()
+
 			var reply AppendEntriesReply
-			ok := peer.Call("Raft.AppendEntries", &AppendEntriesArgs{
-				Term: term,
-			}, &reply)
+			ok := peer.Call("Raft.AppendEntries", args, &reply)
 
 			if !ok {
 				return
 			}
 
-			if reply.Term > term {
-				// >>>>> CRITICAL SECTION >>>>>
-				rf.mu.Lock()
-				defer rf.mu.Unlock()
+			// >>>>> CRITICAL SECTION >>>>>
+			rf.mu.Lock()
+			defer rf.mu.Unlock()
 
-				if reply.Term > rf.currentTerm {
-					rf.convertToFollower(reply.Term)
-				}
+			// term check
+			if reply.Term > rf.currentTerm {
+				rf.convertToFollower(reply.Term)
 				return
-				// >>>>> CRITICAL SECTION >>>>>
 			}
-		}(peer)
+
+			// original state check
+			if !rf.isLeader() || rf.currentTerm != args.Term {
+				return
+			}
+
+			if reply.Success {
+				rf.nextIndex[i] = max(rf.nextIndex[i], nextIndex+len(entriesToSend))
+				rf.matchIndex[i] = max(rf.matchIndex[i], rf.nextIndex[i]-1)
+			} else {
+				if rf.nextIndex[i] == nextIndex {
+					rf.nextIndex[i]--
+				}
+			}
+			// >>>>> CRITICAL SECTION >>>>>
+		}(i, peer)
 	}
 }
