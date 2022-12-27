@@ -33,6 +33,10 @@ type Raft struct {
 	electionTimeout time.Duration
 	votedFor        int
 	log             []*LogItem
+	commitIndex     int
+	lastApplied     int
+	nextIndex       []int
+	matchIndex      []int
 }
 
 // GetState returns current term and whether this server believes it is the leader.
@@ -67,16 +71,15 @@ func (rf *Raft) initCandidate() {
 	rf.votedFor = rf.me
 }
 
-func (rf *Raft) isLeader() bool {
-	return rf.role == roleLeader
-}
-
 func (rf *Raft) convertToLeader() {
-	rf.role = roleLeader
-}
+	peerNum := len(rf.peers)
 
-func (rf *Raft) getLastLogIndex() int {
-	return len(rf.log)
+	rf.role = roleLeader
+	rf.nextIndex = make([]int, peerNum)
+	for i := 0; i < peerNum; i++ {
+		rf.nextIndex[i] = rf.getLastLogIndex() + 1
+	}
+	rf.matchIndex = make([]int, peerNum)
 }
 
 func (rf *Raft) appendLogItem(command any) {
@@ -84,4 +87,12 @@ func (rf *Raft) appendLogItem(command any) {
 		command: command,
 		term:    rf.currentTerm,
 	})
+}
+
+func (rf *Raft) isLeader() bool {
+	return rf.role == roleLeader
+}
+
+func (rf *Raft) getLastLogIndex() int {
+	return len(rf.log)
 }
