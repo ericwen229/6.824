@@ -1,6 +1,10 @@
 package raft
 
-import "time"
+import (
+	"6.824/labrpc"
+	"sync"
+	"time"
+)
 
 type Role int32
 
@@ -9,6 +13,28 @@ const (
 	roleCandidate Role = 2
 	roleLeader    Role = 3
 )
+
+// Raft implements a single Raft peer.
+type Raft struct {
+	mu        sync.Mutex          // lock to protect shared access to this peer's state
+	peers     []*labrpc.ClientEnd // RPC endpoints of all peers
+	persister *Persister          // object to hold this peer's persisted state
+	me        int                 // this peer's index into peers[]
+	dead      int32               // set by Kill()
+
+	currentTerm     int
+	role            Role
+	electionTimer   time.Time
+	electionTimeout time.Duration
+	votedFor        int
+}
+
+// GetState returns current term and whether this server believes it is the leader.
+func (rf *Raft) GetState() (int, bool) {
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
+	return rf.currentTerm, rf.role == roleLeader
+}
 
 // unprotected state transfer methods
 

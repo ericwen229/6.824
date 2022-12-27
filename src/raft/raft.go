@@ -18,13 +18,9 @@ package raft
 //
 
 import (
-	//	"bytes"
-	"sync"
-	"sync/atomic"
-	"time"
-
 	//	"6.824/labgob"
 	"6.824/labrpc"
+	"sync/atomic"
 )
 
 //
@@ -48,28 +44,6 @@ type ApplyMsg struct {
 	Snapshot      []byte
 	SnapshotTerm  int
 	SnapshotIndex int
-}
-
-// Raft implements a single Raft peer.
-type Raft struct {
-	mu        sync.Mutex          // lock to protect shared access to this peer's state
-	peers     []*labrpc.ClientEnd // RPC endpoints of all peers
-	persister *Persister          // object to hold this peer's persisted state
-	me        int                 // this peer's index into peers[]
-	dead      int32               // set by Kill()
-
-	currentTerm     int
-	role            Role
-	electionTimer   time.Time
-	electionTimeout time.Duration
-	votedFor        int
-}
-
-// GetState returns current term and whether this server believes it is the leader.
-func (rf *Raft) GetState() (int, bool) {
-	rf.mu.Lock()
-	defer rf.mu.Unlock()
-	return rf.currentTerm, rf.role == roleLeader
 }
 
 //
@@ -129,6 +103,24 @@ func (rf *Raft) Snapshot(index int, snapshot []byte) {
 	// Your code here (2D).
 }
 
+func Make(peers []*labrpc.ClientEnd, me int,
+	persister *Persister, applyCh chan ApplyMsg) *Raft {
+	rf := &Raft{}
+	rf.peers = peers
+	rf.persister = persister
+	rf.me = me
+
+	rf.initFollower()
+
+	// initialize from state persisted before a crash
+	rf.readPersist(persister.ReadRaftState())
+
+	go rf.electionTimeoutCheckLoop()
+	go rf.heartbeatLoop()
+
+	return rf
+}
+
 //
 // the service using Raft (e.g. a k/v server) wants to start
 // agreement on the next command to be appended to Raft's log. if this
@@ -155,22 +147,4 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 
 func (rf *Raft) Kill() {
 	atomic.StoreInt32(&rf.dead, 1)
-}
-
-func Make(peers []*labrpc.ClientEnd, me int,
-	persister *Persister, applyCh chan ApplyMsg) *Raft {
-	rf := &Raft{}
-	rf.peers = peers
-	rf.persister = persister
-	rf.me = me
-
-	rf.initFollower()
-
-	// initialize from state persisted before a crash
-	rf.readPersist(persister.ReadRaftState())
-
-	go rf.electionTimeoutCheckLoop()
-	go rf.heartbeatLoop()
-
-	return rf
 }
