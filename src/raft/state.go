@@ -14,6 +14,11 @@ const (
 	roleLeader    Role = 3
 )
 
+type LogItem struct {
+	command interface{}
+	term    int
+}
+
 // Raft implements a single Raft peer.
 type Raft struct {
 	mu        sync.Mutex          // lock to protect shared access to this peer's state
@@ -27,6 +32,7 @@ type Raft struct {
 	electionTimer   time.Time
 	electionTimeout time.Duration
 	votedFor        int
+	log             []*LogItem
 }
 
 // GetState returns current term and whether this server believes it is the leader.
@@ -61,6 +67,21 @@ func (rf *Raft) initCandidate() {
 	rf.votedFor = rf.me
 }
 
+func (rf *Raft) isLeader() bool {
+	return rf.role == roleLeader
+}
+
 func (rf *Raft) convertToLeader() {
 	rf.role = roleLeader
+}
+
+func (rf *Raft) getLastLogIndex() int {
+	return len(rf.log)
+}
+
+func (rf *Raft) appendLogItem(command any) {
+	rf.log = append(rf.log, &LogItem{
+		command: command,
+		term:    rf.currentTerm,
+	})
 }
