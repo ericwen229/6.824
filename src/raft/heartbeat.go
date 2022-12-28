@@ -39,7 +39,7 @@ func (rf *Raft) broadcastHeartbeat() {
 			entriesToSend := rf.getEntriesToSend(nextIndex)
 			prevLogIndex := nextIndex - 1
 			prevLogTerm := NilTerm
-			if rf.isLogIndexInRange(prevLogIndex) {
+			if rf.isLogIndexWithinRange(prevLogIndex) {
 				prevLogTerm = rf.getEntry(prevLogIndex).Term
 			}
 			args := &AppendEntriesArgs{

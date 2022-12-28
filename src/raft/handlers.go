@@ -23,7 +23,9 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 
 	if args.Term > rf.currentTerm {
 		rf.convertToFollower(args.Term)
-	} else if args.Term < rf.currentTerm {
+	}
+
+	if args.Term < rf.currentTerm {
 		reply.Term = rf.currentTerm
 		reply.Success = false
 		return
@@ -32,12 +34,12 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 	// invariant: args.Term == rf.currentTerm
 
 	if rf.role == roleCandidate {
-		rf.convertToFollower(args.Term)
+		rf.convertToFollower(rf.currentTerm)
 	}
-	rf.electionTimer = time.Now()
+	rf.electionTimer = time.Now() // got an AppendEntries request from current leader
 	reply.Term = rf.currentTerm
 
-	if !rf.isNilLogIndex(args.PrevLogIndex) && (!rf.isLogIndexInRange(args.PrevLogIndex) || rf.getEntry(args.PrevLogIndex).Term != args.PrevLogTerm) {
+	if args.PrevLogIndex > 0 && (!rf.isLogIndexWithinRange(args.PrevLogIndex) || rf.getEntry(args.PrevLogIndex).Term != args.PrevLogTerm) {
 		reply.Success = false
 		return
 	}
@@ -68,7 +70,9 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 
 	if args.Term > rf.currentTerm {
 		rf.convertToFollower(args.Term)
-	} else if args.Term < rf.currentTerm {
+	}
+
+	if args.Term < rf.currentTerm {
 		reply.Term = rf.currentTerm
 		reply.VoteGranted = false
 		return
@@ -80,5 +84,6 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	reply.VoteGranted = (rf.votedFor == -1 || rf.votedFor == args.CandidateId) && rf.isMoreUpToDateThanMe(args.LastLogIndex, args.LastLogTerm)
 	if reply.VoteGranted {
 		rf.votedFor = args.CandidateId
+		rf.electionTimer = time.Now() // granting vote to another peer
 	}
 }

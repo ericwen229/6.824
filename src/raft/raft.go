@@ -123,8 +123,7 @@ func Make(peers []*labrpc.ClientEnd, me int,
 }
 
 const (
-	NilIndex = 0
-	NilTerm  = -1
+	NilTerm = -1
 )
 
 func (rf *Raft) Start(command interface{}) (int, int, bool) {
@@ -133,7 +132,7 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 	defer rf.mu.Unlock()
 
 	if !rf.isLeader() {
-		return NilIndex, NilTerm, false
+		return 0, NilTerm, false
 	}
 
 	rf.appendCommand(command)

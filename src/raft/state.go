@@ -53,14 +53,13 @@ func (rf *Raft) GetState() (int, bool) {
 func (rf *Raft) convertToFollower(newTerm int) {
 	rf.currentTerm = newTerm
 	rf.role = roleFollower
-	rf.electionTimer = time.Now()
 	rf.electionTimeout = randElectionTimeout()
 	rf.votedFor = -1
 }
 
 func (rf *Raft) initFollower() {
 	rf.role = roleFollower
-	rf.electionTimer = time.Now()
+	rf.electionTimer = time.Now() // initial
 	rf.electionTimeout = randElectionTimeout()
 	rf.votedFor = -1
 	rf.commitCond = sync.NewCond(&rf.mu)
@@ -69,7 +68,7 @@ func (rf *Raft) initFollower() {
 func (rf *Raft) initCandidate() {
 	rf.currentTerm++
 	rf.role = roleCandidate
-	rf.electionTimer = time.Now()
+	rf.electionTimer = time.Now() // starting an election
 	rf.electionTimeout = randElectionTimeout()
 	rf.votedFor = rf.me
 }
@@ -99,7 +98,7 @@ func (rf *Raft) appendLogEntry(entry *LogEntry) {
 func (rf *Raft) updateLogEntries(startIndex int, entries []*LogEntry) {
 	for i, entry := range entries {
 		thisIndex := startIndex + i
-		if rf.isLogIndexInRange(thisIndex) {
+		if rf.isLogIndexWithinRange(thisIndex) {
 			if rf.getEntry(thisIndex).Term != entry.Term {
 				rf.removeEntriesFrom(thisIndex)
 				rf.appendLogEntry(entry)
@@ -156,6 +155,9 @@ func (rf *Raft) updateCommitIndex(newIndex int) {
 func (rf *Raft) removeEntriesFrom(startIndex int) {
 	//   log index: 1 2 3 4 5
 	// slice index: 0 1 2 3 4
+	// after removeEntriesFrom(4)
+	//   log index: 1 2 3
+	// slice index: 0 1 2
 	rf.log = rf.log[:startIndex-1]
 }
 
@@ -175,12 +177,8 @@ func (rf *Raft) getLastLogTerm() int {
 	}
 }
 
-func (rf *Raft) isLogIndexInRange(index int) bool {
+func (rf *Raft) isLogIndexWithinRange(index int) bool {
 	return index >= 1 && index <= rf.getLastLogIndex()
-}
-
-func (rf *Raft) isNilLogIndex(index int) bool {
-	return index == NilIndex
 }
 
 func (rf *Raft) isNilLogTerm(term int) bool {
@@ -192,7 +190,7 @@ func (rf *Raft) isNonNilLogTerm(term int) bool {
 }
 
 func (rf *Raft) getEntriesToSend(nextIndex int) []*LogEntry {
-	if rf.isLogIndexInRange(nextIndex) {
+	if rf.isLogIndexWithinRange(nextIndex) {
 		return rf.getEntries(nextIndex)
 	} else {
 		return nil
