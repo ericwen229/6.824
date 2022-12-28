@@ -32,12 +32,12 @@ func (rf *Raft) checkElectionTimeout() {
 
 	if time.Since(rf.electionTimer) >= rf.electionTimeout {
 		rf.initCandidate()
-		go rf.runForLeader(rf.currentTerm)
+		go rf.runForLeader(rf.currentTerm, rf.getLastLogIndex(), rf.getLastLogTerm())
 	}
 	// >>>>> CRITICAL SECTION >>>>>
 }
 
-func (rf *Raft) runForLeader(term int) {
+func (rf *Raft) runForLeader(term, lastLogIndex, lastLogTerm int) {
 	peerNum := len(rf.peers)
 	majorityNum := peerNum/2 + 1
 
@@ -49,11 +49,13 @@ func (rf *Raft) runForLeader(term int) {
 			continue
 		}
 
-		go func(peer *labrpc.ClientEnd) {
+		go func(i int, peer *labrpc.ClientEnd) {
 			var reply RequestVoteReply
 			ok := peer.Call("Raft.RequestVote", &RequestVoteArgs{
-				Term:        term,
-				CandidateId: rf.me,
+				Term:         term,
+				CandidateId:  rf.me,
+				LastLogIndex: lastLogIndex,
+				LastLogTerm:  lastLogTerm,
 			}, &reply)
 
 			if !ok {
@@ -89,6 +91,6 @@ func (rf *Raft) runForLeader(term int) {
 					// >>>>> CRITICAL SECTION >>>>>
 				}
 			}
-		}(peer)
+		}(i, peer)
 	}
 }

@@ -30,22 +30,13 @@ func (rf *Raft) broadcastHeartbeat() {
 		}
 
 		go func(i int, peer *labrpc.ClientEnd) {
-			// 1 2 3 4 5
-			// a b c d e
-			// nextIndex = 2
-			// matchIndex = 0
-			// entriesToSend = b c d e
-			// prevLogIndex = 1
-			// prevLogTerm = ...
-			// newNextIndex = 6
-			// newMatchIndex = 5
-
+			// >>>>> CRITICAL SECTION >>>>>
 			rf.mu.Lock()
 			nextIndex := rf.nextIndex[i]
 			entriesToSend := rf.getEntriesToSend(nextIndex)
 			prevLogIndex := nextIndex - 1
 			prevLogTerm := NilTerm
-			if rf.isValidLogIndex(prevLogIndex) {
+			if rf.isLogIndexInRange(prevLogIndex) {
 				prevLogTerm = rf.getEntry(prevLogIndex).Term
 			}
 			args := &AppendEntriesArgs{
@@ -56,6 +47,7 @@ func (rf *Raft) broadcastHeartbeat() {
 				LeaderCommit: rf.commitIndex,
 			}
 			rf.mu.Unlock()
+			// >>>>> CRITICAL SECTION >>>>>
 
 			var reply AppendEntriesReply
 			ok := peer.Call("Raft.AppendEntries", args, &reply)
@@ -82,6 +74,7 @@ func (rf *Raft) broadcastHeartbeat() {
 			if reply.Success {
 				rf.nextIndex[i] = max(rf.nextIndex[i], nextIndex+len(entriesToSend))
 				rf.matchIndex[i] = max(rf.matchIndex[i], rf.nextIndex[i]-1)
+				rf.updateCommitStatus()
 			} else {
 				if rf.nextIndex[i] == nextIndex {
 					rf.nextIndex[i]--

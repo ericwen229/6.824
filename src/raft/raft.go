@@ -117,12 +117,13 @@ func Make(peers []*labrpc.ClientEnd, me int,
 
 	go rf.electionTimeoutCheckLoop()
 	go rf.heartbeatLoop()
+	go rf.commitLoop(applyCh)
 
 	return rf
 }
 
 const (
-	NilIndex = -1
+	NilIndex = 0
 	NilTerm  = -1
 )
 
@@ -135,7 +136,7 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 		return NilIndex, NilTerm, false
 	}
 
-	rf.appendLogItem(command)
+	rf.appendCommand(command)
 
 	return rf.getLastLogIndex(), rf.currentTerm, true
 	// >>>>> CRITICAL SECTION >>>>>
