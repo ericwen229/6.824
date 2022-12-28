@@ -2,6 +2,7 @@ package raft
 
 import (
 	"6.824/labrpc"
+	"fmt"
 	"time"
 )
 
@@ -30,6 +31,8 @@ func (rf *Raft) broadcastHeartbeat() {
 		}
 
 		go func(i int, peer *labrpc.ClientEnd) {
+			ctx := newContextWithLogId()
+
 			// >>>>> CRITICAL SECTION >>>>>
 			rf.mu.Lock()
 			nextIndex := rf.nextIndex[i]
@@ -46,6 +49,7 @@ func (rf *Raft) broadcastHeartbeat() {
 				Entries:      entriesToSend,
 				LeaderCommit: rf.commitIndex,
 			}
+			rf.debug(ctx, fmt.Sprintf("AppendEntries args: %+v", args))
 			rf.mu.Unlock()
 			// >>>>> CRITICAL SECTION >>>>>
 
@@ -59,6 +63,7 @@ func (rf *Raft) broadcastHeartbeat() {
 			// >>>>> CRITICAL SECTION >>>>>
 			rf.mu.Lock()
 			defer rf.mu.Unlock()
+			rf.debug(ctx, fmt.Sprintf("AppendEntries reply: %+v", &reply))
 
 			// term check
 			if reply.Term > rf.currentTerm {

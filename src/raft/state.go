@@ -110,17 +110,19 @@ func (rf *Raft) updateLogEntries(startIndex int, entries []*LogEntry) {
 	}
 }
 
-func (rf *Raft) isMoreUpToDate(lastIndex, lastTerm int) bool {
+func (rf *Raft) isMoreUpToDateThanMe(lastIndex, lastTerm int) bool {
 	thisLastIndex := rf.getLastLogIndex()
 	thisLastTerm := rf.getLastLogTerm()
 
-	if !rf.isNonNilLogTerm(thisLastTerm) {
+	if rf.isNilLogTerm(thisLastTerm) {
 		return true
-	} else if !rf.isNonNilLogTerm(lastTerm) {
+	} else if rf.isNilLogTerm(lastTerm) {
 		return false
+	} else if thisLastTerm != lastTerm {
+		return lastTerm > thisLastTerm
+	} else {
+		return lastIndex >= thisLastIndex
 	}
-
-	return lastIndex >= thisLastIndex
 }
 
 func (rf *Raft) updateCommitStatus() {
@@ -179,6 +181,10 @@ func (rf *Raft) isLogIndexInRange(index int) bool {
 
 func (rf *Raft) isNilLogIndex(index int) bool {
 	return index == NilIndex
+}
+
+func (rf *Raft) isNilLogTerm(term int) bool {
+	return term == NilTerm
 }
 
 func (rf *Raft) isNonNilLogTerm(term int) bool {

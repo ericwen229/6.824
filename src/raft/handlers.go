@@ -77,7 +77,7 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	// invariant: args.Term == rf.currentTerm
 
 	reply.Term = rf.currentTerm
-	reply.VoteGranted = rf.votedFor == -1 || rf.votedFor == args.CandidateId && rf.isMoreUpToDate(args.LastLogIndex, args.LastLogTerm)
+	reply.VoteGranted = (rf.votedFor == -1 || rf.votedFor == args.CandidateId) && rf.isMoreUpToDateThanMe(args.LastLogIndex, args.LastLogTerm)
 	if reply.VoteGranted {
 		rf.votedFor = args.CandidateId
 	}
