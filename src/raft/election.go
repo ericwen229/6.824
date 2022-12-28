@@ -9,7 +9,7 @@ import (
 
 func randElectionTimeout() time.Duration {
 	minMs := 200
-	maxMs := 1000
+	maxMs := 800
 	timeoutMs := minMs + rand.Intn(maxMs-minMs)
 	return time.Duration(timeoutMs) * time.Millisecond
 }
@@ -30,14 +30,38 @@ func (rf *Raft) checkElectionTimeout() {
 		return
 	}
 
+	// Follower Rule 2:
+	// if election timeout elapses without receiving AppendEntries
+	// RPC from current leader or granting vote to candidate
+
+	// Candidate Rule 4:
+	// if election timeout elapses: start new election
 	if time.Since(rf.electionTimer) >= rf.electionTimeout {
-		rf.initCandidate()
-		go rf.runForLeader(rf.currentTerm, rf.getLastLogIndex(), rf.getLastLogTerm())
+		rf.role = roleCandidate
+
+		// each candidate restarts its randomized election timeout
+		// at the start of an election
+		rf.electionTimeout = randElectionTimeout()
+
+		// Candidate Rule 1:
+		// on conversion to candidate, start election:
+		// - increment currentTerm
+		rf.currentTerm++
+		// - vote for self
+		rf.votedFor = rf.me
+		// - reset election timer
+		rf.electionTimer = time.Now()
+		// - send RequestVote RPCs to all other servers
+		rf.runForLeader()
 	}
 	// >>>>> CRITICAL SECTION >>>>>
 }
 
-func (rf *Raft) runForLeader(term, lastLogIndex, lastLogTerm int) {
+func (rf *Raft) runForLeader() {
+	currentTerm := rf.currentTerm
+	lastLogIndex := rf.getLastLogIndex()
+	lastLogTerm := rf.getLastLogTerm()
+
 	peerNum := len(rf.peers)
 	majorityNum := peerNum/2 + 1
 
@@ -52,7 +76,7 @@ func (rf *Raft) runForLeader(term, lastLogIndex, lastLogTerm int) {
 		go func(i int, peer *labrpc.ClientEnd) {
 			var reply RequestVoteReply
 			ok := peer.Call("Raft.RequestVote", &RequestVoteArgs{
-				Term:         term,
+				Term:         currentTerm,
 				CandidateId:  rf.me,
 				LastLogIndex: lastLogIndex,
 				LastLogTerm:  lastLogTerm,
@@ -62,16 +86,20 @@ func (rf *Raft) runForLeader(term, lastLogIndex, lastLogTerm int) {
 				return
 			}
 
-			if reply.Term > term {
-				// >>>>> CRITICAL SECTION >>>>>
-				rf.mu.Lock()
-				defer rf.mu.Unlock()
+			rf.mu.Lock()
+			defer rf.mu.Unlock()
 
-				if reply.Term > rf.currentTerm {
-					rf.convertToFollower(reply.Term)
-				}
+			// All Server Rule 2:
+			// if RPC request or response contains term T > currentTerm
+			// set currentTerm = T, convert to follower
+			if reply.Term > rf.currentTerm {
+				rf.convertToFollower(reply.Term)
 				return
-				// >>>>> CRITICAL SECTION >>>>>
+			}
+
+			// stale reply check
+			if rf.role != roleCandidate || rf.currentTerm != currentTerm {
+				return
 			}
 
 			if reply.VoteGranted {
@@ -80,15 +108,7 @@ func (rf *Raft) runForLeader(term, lastLogIndex, lastLogTerm int) {
 
 				upvoteCount++
 				if upvoteCount >= majorityNum {
-					// >>>>> CRITICAL SECTION >>>>>
-					rf.mu.Lock()
-					defer rf.mu.Unlock()
-
-					if rf.role == roleCandidate && rf.currentTerm == term {
-						rf.convertToLeader()
-					}
-					return
-					// >>>>> CRITICAL SECTION >>>>>
+					rf.convertToLeader()
 				}
 			}
 		}(i, peer)

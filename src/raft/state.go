@@ -38,7 +38,6 @@ type Raft struct {
 	lastApplied     int
 	nextIndex       []int
 	matchIndex      []int
-	commitCond      *sync.Cond
 }
 
 // GetState returns current term and whether this server believes it is the leader.
@@ -53,7 +52,6 @@ func (rf *Raft) GetState() (int, bool) {
 func (rf *Raft) convertToFollower(newTerm int) {
 	rf.currentTerm = newTerm
 	rf.role = roleFollower
-	rf.electionTimeout = randElectionTimeout()
 	rf.votedFor = -1
 }
 
@@ -62,15 +60,6 @@ func (rf *Raft) initFollower() {
 	rf.electionTimer = time.Now() // initial
 	rf.electionTimeout = randElectionTimeout()
 	rf.votedFor = -1
-	rf.commitCond = sync.NewCond(&rf.mu)
-}
-
-func (rf *Raft) initCandidate() {
-	rf.currentTerm++
-	rf.role = roleCandidate
-	rf.electionTimer = time.Now() // starting an election
-	rf.electionTimeout = randElectionTimeout()
-	rf.votedFor = rf.me
 }
 
 func (rf *Raft) convertToLeader() {
@@ -84,6 +73,13 @@ func (rf *Raft) convertToLeader() {
 	rf.matchIndex = make([]int, peerNum)
 }
 
+func (rf *Raft) hasPrevLog(prevLogIndex, prevLogTerm int) bool {
+	if prevLogIndex == 0 {
+		return true
+	}
+	return rf.isLogIndexInRange(prevLogIndex) && rf.getEntry(prevLogIndex).Term == prevLogTerm
+}
+
 func (rf *Raft) appendCommand(command interface{}) {
 	rf.log = append(rf.log, &LogEntry{
 		Command: command,
@@ -95,29 +91,17 @@ func (rf *Raft) appendLogEntry(entry *LogEntry) {
 	rf.log = append(rf.log, entry)
 }
 
-func (rf *Raft) updateLogEntries(startIndex int, entries []*LogEntry) {
-	for i, entry := range entries {
-		thisIndex := startIndex + i
-		if rf.isLogIndexWithinRange(thisIndex) {
-			if rf.getEntry(thisIndex).Term != entry.Term {
-				rf.removeEntriesFrom(thisIndex)
-				rf.appendLogEntry(entry)
-			}
-		} else {
-			rf.appendLogEntry(entry)
-		}
-	}
-}
-
 func (rf *Raft) isMoreUpToDateThanMe(lastIndex, lastTerm int) bool {
 	thisLastIndex := rf.getLastLogIndex()
 	thisLastTerm := rf.getLastLogTerm()
 
-	if rf.isNilLogTerm(thisLastTerm) {
-		return true
-	} else if rf.isNilLogTerm(lastTerm) {
-		return false
-	} else if thisLastTerm != lastTerm {
+	// Raft determines which of two logs is more up-to-date
+	// by comparing the index and term of the last entries in the logs.
+	// If the logs have last entries with different terms,
+	// then the log with the later term is more up-to-date.
+	// If the logs end with the same term, then whichever log is longer
+	// is more up-to-date.
+	if thisLastTerm != lastTerm {
 		return lastTerm > thisLastTerm
 	} else {
 		return lastIndex >= thisLastIndex
@@ -138,18 +122,12 @@ func (rf *Raft) updateCommitStatus() {
 	majorityNum := peerNum/2 + 1
 	newCommitIndex := matchIndexList[majorityNum-1-1]
 	if newCommitIndex > rf.commitIndex && rf.getEntry(newCommitIndex).Term == rf.currentTerm {
-		rf.updateCommitIndex(newCommitIndex)
+		rf.commitIndex = newCommitIndex
 	}
 }
 
 func (rf *Raft) updateCommitIndex(newIndex int) {
-	if newIndex < rf.commitIndex {
-		panic("commit index decreases")
-	} else if newIndex == rf.commitIndex {
-		return
-	}
 	rf.commitIndex = newIndex
-	rf.commitCond.Broadcast()
 }
 
 func (rf *Raft) removeEntriesFrom(startIndex int) {
@@ -177,7 +155,7 @@ func (rf *Raft) getLastLogTerm() int {
 	}
 }
 
-func (rf *Raft) isLogIndexWithinRange(index int) bool {
+func (rf *Raft) isLogIndexInRange(index int) bool {
 	return index >= 1 && index <= rf.getLastLogIndex()
 }
 
@@ -190,7 +168,7 @@ func (rf *Raft) isNonNilLogTerm(term int) bool {
 }
 
 func (rf *Raft) getEntriesToSend(nextIndex int) []*LogEntry {
-	if rf.isLogIndexWithinRange(nextIndex) {
+	if rf.isLogIndexInRange(nextIndex) {
 		return rf.getEntries(nextIndex)
 	} else {
 		return nil
@@ -202,5 +180,8 @@ func (rf *Raft) getEntry(index int) *LogEntry {
 }
 
 func (rf *Raft) getEntries(from int) []*LogEntry {
-	return rf.log[from-1:]
+	src := rf.log[from-1:]
+	dst := make([]*LogEntry, len(src))
+	copy(dst, src)
+	return dst
 }

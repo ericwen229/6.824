@@ -39,7 +39,7 @@ func (rf *Raft) broadcastHeartbeat() {
 			entriesToSend := rf.getEntriesToSend(nextIndex)
 			prevLogIndex := nextIndex - 1
 			prevLogTerm := NilTerm
-			if rf.isLogIndexWithinRange(prevLogIndex) {
+			if rf.isLogIndexInRange(prevLogIndex) {
 				prevLogTerm = rf.getEntry(prevLogIndex).Term
 			}
 			args := &AppendEntriesArgs{
@@ -65,25 +65,25 @@ func (rf *Raft) broadcastHeartbeat() {
 			defer rf.mu.Unlock()
 			rf.debug(ctx, fmt.Sprintf("AppendEntries reply: %+v", &reply))
 
-			// term check
+			// All Server Rule 2:
+			// if RPC request or response contains term T > currentTerm
+			// set currentTerm = T, convert to follower
 			if reply.Term > rf.currentTerm {
 				rf.convertToFollower(reply.Term)
 				return
 			}
 
-			// original state check
-			if !rf.isLeader() || rf.currentTerm != args.Term {
+			// stale reply check
+			if rf.role != roleLeader || rf.currentTerm != args.Term {
 				return
 			}
 
 			if reply.Success {
-				rf.nextIndex[i] = max(rf.nextIndex[i], nextIndex+len(entriesToSend))
-				rf.matchIndex[i] = max(rf.matchIndex[i], rf.nextIndex[i]-1)
+				rf.nextIndex[i] = nextIndex + len(entriesToSend)
+				rf.matchIndex[i] = prevLogIndex + len(entriesToSend)
 				rf.updateCommitStatus()
 			} else {
-				if rf.nextIndex[i] == nextIndex {
-					rf.nextIndex[i]--
-				}
+				rf.nextIndex[i] = nextIndex - 1
 			}
 			// >>>>> CRITICAL SECTION >>>>>
 		}(i, peer)
