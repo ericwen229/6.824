@@ -96,7 +96,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 	// if leaderCommit > commitIndex, set commitIndex = min(leaderCommit, index of last new entry)
 	if args.LeaderCommit > rf.commitIndex {
 		rf.updateCommitIndex(min(args.LeaderCommit, args.PrevLogIndex+len(args.Entries)))
-		rf.log("advance CI:%d", rf.commitIndex)
+		rf.log("advance commitIndex:%d", rf.commitIndex)
 	}
 }
 

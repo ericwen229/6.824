@@ -106,6 +106,8 @@ func (rf *Raft) updateCommitStatus() {
 	for i, index := range rf.matchIndex {
 		if i != rf.me {
 			matchIndexList = append(matchIndexList, index)
+		} else {
+			matchIndexList = append(matchIndexList, len(rf.logEntries))
 		}
 	}
 	sort.Slice(matchIndexList, func(i, j int) bool {
@@ -113,7 +115,7 @@ func (rf *Raft) updateCommitStatus() {
 	})
 	peerNum := len(rf.peers)
 	majorityNum := peerNum/2 + 1
-	newCommitIndex := matchIndexList[majorityNum-1-1]
+	newCommitIndex := matchIndexList[majorityNum-1]
 	if newCommitIndex > rf.commitIndex && rf.getEntry(newCommitIndex).Term == rf.currentTerm {
 		rf.commitIndex = newCommitIndex
 	}

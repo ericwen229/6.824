@@ -35,6 +35,7 @@ func formatEntries(entries []*LogEntry) string {
 		if i != 0 {
 			builder.WriteString(",")
 		}
+		builder.WriteString(fmt.Sprintf("%d:", i+1))
 		builder.WriteString(formatEntry(entry))
 	}
 	builder.WriteString("]")
