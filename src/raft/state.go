@@ -33,7 +33,7 @@ type Raft struct {
 	electionTimer   time.Time
 	electionTimeout time.Duration
 	votedFor        int
-	log             []*LogEntry
+	logEntries      []*LogEntry
 	commitIndex     int
 	lastApplied     int
 	nextIndex       []int
@@ -52,13 +52,6 @@ func (rf *Raft) GetState() (int, bool) {
 func (rf *Raft) convertToFollower(newTerm int) {
 	rf.currentTerm = newTerm
 	rf.role = roleFollower
-	rf.votedFor = -1
-}
-
-func (rf *Raft) initFollower() {
-	rf.role = roleFollower
-	rf.electionTimer = time.Now() // initial
-	rf.electionTimeout = randElectionTimeout()
 	rf.votedFor = -1
 }
 
@@ -81,14 +74,14 @@ func (rf *Raft) hasPrevLog(prevLogIndex, prevLogTerm int) bool {
 }
 
 func (rf *Raft) appendCommand(command interface{}) {
-	rf.log = append(rf.log, &LogEntry{
+	rf.logEntries = append(rf.logEntries, &LogEntry{
 		Command: command,
 		Term:    rf.currentTerm,
 	})
 }
 
 func (rf *Raft) appendLogEntry(entry *LogEntry) {
-	rf.log = append(rf.log, entry)
+	rf.logEntries = append(rf.logEntries, entry)
 }
 
 func (rf *Raft) isMoreUpToDateThanMe(lastIndex, lastTerm int) bool {
@@ -136,7 +129,7 @@ func (rf *Raft) removeEntriesFrom(startIndex int) {
 	// after removeEntriesFrom(4)
 	//   log index: 1 2 3
 	// slice index: 0 1 2
-	rf.log = rf.log[:startIndex-1]
+	rf.logEntries = rf.logEntries[:startIndex-1]
 }
 
 func (rf *Raft) isLeader() bool {
@@ -144,14 +137,14 @@ func (rf *Raft) isLeader() bool {
 }
 
 func (rf *Raft) getLastLogIndex() int {
-	return len(rf.log)
+	return len(rf.logEntries)
 }
 
 func (rf *Raft) getLastLogTerm() int {
-	if len(rf.log) == 0 {
+	if len(rf.logEntries) == 0 {
 		return NilTerm
 	} else {
-		return rf.log[len(rf.log)-1].Term
+		return rf.logEntries[len(rf.logEntries)-1].Term
 	}
 }
 
@@ -176,11 +169,11 @@ func (rf *Raft) getEntriesToSend(nextIndex int) []*LogEntry {
 }
 
 func (rf *Raft) getEntry(index int) *LogEntry {
-	return rf.log[index-1]
+	return rf.logEntries[index-1]
 }
 
 func (rf *Raft) getEntries(from int) []*LogEntry {
-	src := rf.log[from-1:]
+	src := rf.logEntries[from-1:]
 	dst := make([]*LogEntry, len(src))
 	copy(dst, src)
 	return dst

@@ -1,35 +1,46 @@
 package raft
 
 import (
-	"context"
 	"fmt"
-	"math/rand"
-	"strconv"
+	"os"
+	"strings"
+	"time"
 )
 
-func genLogId() string {
-	return strconv.Itoa(rand.Int())
+var logSwitch bool
+var logStart time.Time
+
+func init() {
+	logSwitch = isLogSwitchOn()
+	logStart = time.Now()
 }
 
-func newContextWithLogId() context.Context {
-	return context.WithValue(context.Background(), "logid", genLogId())
+func isLogSwitchOn() bool {
+	return os.Getenv("DEBUG") != ""
 }
 
-func (rf *Raft) debug(ctx context.Context, msg string) {
-	return
-	logId := ctx.Value("logid")
-	peer := rf.me
-	term := rf.currentTerm
-
-	role := ""
-	switch rf.role {
-	case roleFollower:
-		role = "F"
-	case roleCandidate:
-		role = "C"
-	case roleLeader:
-		role = "L"
+func (rf *Raft) log(fmtStr string, args ...interface{}) {
+	if logSwitch {
+		milli := time.Since(logStart).Milliseconds()
+		prefix := fmt.Sprintf("%06d S%d ", milli, rf.me)
+		fmtStr := prefix + fmtStr
+		fmt.Printf(fmtStr+"\n", args...)
 	}
+}
 
-	fmt.Printf("[logid %s][peer %d][term %d][role %s] %s\n", logId, peer, term, role, msg)
+func formatEntries(entries []*LogEntry) string {
+	var builder strings.Builder
+	builder.WriteString("[")
+	for i, entry := range entries {
+		if i != 0 {
+			builder.WriteString(",")
+		}
+		builder.WriteString(formatEntry(entry))
+	}
+	builder.WriteString("]")
+	return builder.String()
+}
+
+func formatEntry(entry *LogEntry) string {
+	return fmt.Sprintf("{%d:%v}", entry.Term, entry.Command)
 }

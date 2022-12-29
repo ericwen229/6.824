@@ -17,7 +17,7 @@ func randElectionTimeout() time.Duration {
 func (rf *Raft) electionTimeoutCheckLoop() {
 	for rf.killed() == false {
 		rf.checkElectionTimeout()
-		time.Sleep(10 * time.Millisecond)
+		time.Sleep(5 * time.Millisecond)
 	}
 }
 
@@ -51,6 +51,7 @@ func (rf *Raft) checkElectionTimeout() {
 		rf.votedFor = rf.me
 		// - reset election timer
 		rf.electionTimer = time.Now()
+
 		// - send RequestVote RPCs to all other servers
 		rf.runForLeader()
 	}
@@ -61,6 +62,8 @@ func (rf *Raft) runForLeader() {
 	currentTerm := rf.currentTerm
 	lastLogIndex := rf.getLastLogIndex()
 	lastLogTerm := rf.getLastLogTerm()
+
+	rf.log("start election, reset election timer T:%d LLI:%d LLT:%d ET:%v", rf.currentTerm, lastLogIndex, lastLogTerm, rf.electionTimeout)
 
 	peerNum := len(rf.peers)
 	majorityNum := peerNum/2 + 1
@@ -93,6 +96,7 @@ func (rf *Raft) runForLeader() {
 			// if RPC request or response contains term T > currentTerm
 			// set currentTerm = T, convert to follower
 			if reply.Term > rf.currentTerm {
+				rf.log("convert to follower (RequestVote reply higher term T:%d from S%d)", reply.Term, i)
 				rf.convertToFollower(reply.Term)
 				return
 			}
@@ -107,7 +111,10 @@ func (rf *Raft) runForLeader() {
 				defer mu.Unlock()
 
 				upvoteCount++
+				rf.log("get upvote from S%d, total %d", i, upvoteCount)
+
 				if upvoteCount >= majorityNum {
+					rf.log("become leader T:%d", rf.currentTerm)
 					rf.convertToLeader()
 				}
 			}

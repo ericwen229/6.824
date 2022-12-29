@@ -21,6 +21,7 @@ import (
 	//	"6.824/labgob"
 	"6.824/labrpc"
 	"sync/atomic"
+	"time"
 )
 
 //
@@ -109,8 +110,12 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.peers = peers
 	rf.persister = persister
 	rf.me = me
+	rf.role = roleFollower
+	rf.electionTimer = time.Now() // initial
+	rf.electionTimeout = randElectionTimeout()
+	rf.votedFor = -1
 
-	rf.initFollower()
+	rf.log("init ET:%v", rf.electionTimeout)
 
 	// initialize from state persisted before a crash
 	rf.readPersist(persister.ReadRaftState())
@@ -136,6 +141,7 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 	}
 
 	rf.appendCommand(command)
+	rf.log("receive {%d:%v}, E:%v", rf.currentTerm, command, formatEntries(rf.logEntries))
 
 	return rf.getLastLogIndex(), rf.currentTerm, true
 	// >>>>> CRITICAL SECTION >>>>>

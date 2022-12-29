@@ -2,7 +2,6 @@ package raft
 
 import (
 	"6.824/labrpc"
-	"fmt"
 	"time"
 )
 
@@ -31,8 +30,6 @@ func (rf *Raft) broadcastHeartbeat() {
 		}
 
 		go func(i int, peer *labrpc.ClientEnd) {
-			ctx := newContextWithLogId()
-
 			// >>>>> CRITICAL SECTION >>>>>
 			rf.mu.Lock()
 			nextIndex := rf.nextIndex[i]
@@ -44,12 +41,13 @@ func (rf *Raft) broadcastHeartbeat() {
 			}
 			args := &AppendEntriesArgs{
 				Term:         rf.currentTerm,
+				LeaderId:     rf.me,
 				PrevLogIndex: prevLogIndex,
 				PrevLogTerm:  prevLogTerm,
 				Entries:      entriesToSend,
 				LeaderCommit: rf.commitIndex,
 			}
-			rf.debug(ctx, fmt.Sprintf("AppendEntries args: %+v", args))
+			rf.log("send heartbeat to S%d T:%d PLI:%d PLT:%d CI:%d E:%s", i, rf.currentTerm, prevLogIndex, prevLogTerm, rf.commitIndex, formatEntries(entriesToSend))
 			rf.mu.Unlock()
 			// >>>>> CRITICAL SECTION >>>>>
 
@@ -63,7 +61,6 @@ func (rf *Raft) broadcastHeartbeat() {
 			// >>>>> CRITICAL SECTION >>>>>
 			rf.mu.Lock()
 			defer rf.mu.Unlock()
-			rf.debug(ctx, fmt.Sprintf("AppendEntries reply: %+v", &reply))
 
 			// All Server Rule 2:
 			// if RPC request or response contains term T > currentTerm
@@ -82,6 +79,7 @@ func (rf *Raft) broadcastHeartbeat() {
 				rf.nextIndex[i] = nextIndex + len(entriesToSend)
 				rf.matchIndex[i] = prevLogIndex + len(entriesToSend)
 				rf.updateCommitStatus()
+				rf.log("get success heartbeat from S%d NI:%v MI:%v CI:%d", i, rf.nextIndex, rf.matchIndex, rf.commitIndex)
 			} else {
 				rf.nextIndex[i] = nextIndex - 1
 			}
