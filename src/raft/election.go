@@ -96,7 +96,7 @@ func (rf *Raft) runForLeader() {
 			// if RPC request or response contains term T > currentTerm
 			// set currentTerm = T, convert to follower
 			if reply.Term > rf.currentTerm {
-				rf.log("convert to follower (RequestVote reply higher term T:%d from S%d)", reply.Term, i)
+				rf.log("convert to follower T:%d > T:%d (RequestVote reply higher term from S%d)", rf.currentTerm, reply.Term, i)
 				rf.convertToFollower(reply.Term)
 				return
 			}

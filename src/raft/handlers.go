@@ -37,7 +37,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 	// AppendEntries Rule 1:
 	// reply false if term < currentTerm
 	if args.Term < rf.currentTerm {
-		rf.log("deny AppendEntries from S%d (T%d < self T:%d)", args.LeaderId, args.Term, rf.currentTerm)
+		rf.log("deny AppendEntries from S%d (T:%d < self T:%d)", args.LeaderId, args.Term, rf.currentTerm)
 		reply.Term = rf.currentTerm
 		reply.Success = false
 		return
