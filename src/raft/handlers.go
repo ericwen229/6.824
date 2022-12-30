@@ -43,6 +43,8 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 		return
 	}
 
+	// INVARIANT: args.Term == rf.currentTerm
+
 	// Candidate Rule 3:
 	// if AppendEntries RPC received from new leader
 	// convert to follower
@@ -61,13 +63,13 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 
 	// AppendEntries Rule 2:
 	// reply false if log doesn't contain an entry at prevLogIndex whose term matches prevLogTerm
-	if !rf.hasPrevLog(args.PrevLogIndex, args.PrevLogTerm) {
+	if !rf.hasPrevLogEntry(args.PrevLogIndex, args.PrevLogTerm) {
 		rf.log("deny AppendEntries from S%d (E:%v)", args.LeaderId, formatEntries(rf.logEntries))
 		reply.Success = false
 		return
 	}
-	reply.Success = true
 
+	reply.Success = true
 	if len(args.Entries) > 0 {
 		rf.log("entries before append: %v", formatEntries(rf.logEntries))
 		startIndex := args.PrevLogIndex + 1
@@ -78,7 +80,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 					// AppendEntries Rule 3:
 					// if an existing entry conflicts with a new one (same index)
 					// delete the existing entry and all that follow it
-					rf.removeEntriesFrom(logIndex)
+					rf.removeEntriesStartingFrom(logIndex)
 					rf.appendLogEntry(entry)
 				}
 			} else {
@@ -95,7 +97,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 	// AppendEntries Rule 5
 	// if leaderCommit > commitIndex, set commitIndex = min(leaderCommit, index of last new entry)
 	if args.LeaderCommit > rf.commitIndex {
-		rf.updateCommitIndex(min(args.LeaderCommit, args.PrevLogIndex+len(args.Entries)))
+		rf.commitIndex = min(args.LeaderCommit, args.PrevLogIndex+len(args.Entries))
 		rf.log("advance commitIndex:%d", rf.commitIndex)
 	}
 }
@@ -137,6 +139,8 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 		return
 	}
 
+	// INVARIANT: args.Term == rf.currentTerm
+
 	reply.Term = rf.currentTerm
 
 	// RequestVote Rule 2:
@@ -155,7 +159,7 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 		rf.electionTimer = time.Now()
 	} else {
 		if rf.votedFor != -1 && rf.votedFor != args.CandidateId {
-			rf.log("deny vote to S%d (voted for S%d T:%d)", args.CandidateId, rf.votedFor, rf.currentTerm)
+			rf.log("deny vote to S%d (already voted for S%d T:%d)", args.CandidateId, rf.votedFor, rf.currentTerm)
 		} else {
 			rf.log("deny vote to S%d (this I:%d T:%d > I:%d T:%d)", args.CandidateId, rf.getLastLogIndex(), rf.getLastLogTerm(), args.LastLogIndex, args.LastLogTerm)
 		}

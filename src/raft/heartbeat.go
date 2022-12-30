@@ -5,22 +5,18 @@ import (
 	"time"
 )
 
-const heartbeatInterval = 100 * time.Millisecond
-
 func (rf *Raft) heartbeatLoop() {
 	for rf.killed() == false {
-		// >>>>> CRITICAL SECTION >>>>>
 		rf.mu.Lock()
 		if rf.role == roleLeader {
-			rf.broadcastHeartbeat(rf.currentTerm)
+			rf.broadcastHeartbeat()
 		}
 		rf.mu.Unlock()
-		// >>>>> CRITICAL SECTION >>>>>
 		time.Sleep(heartbeatInterval)
 	}
 }
 
-func (rf *Raft) broadcastHeartbeat(term int) {
+func (rf *Raft) broadcastHeartbeat() {
 	for i, peer := range rf.peers {
 		if rf.me == i {
 			continue
@@ -29,12 +25,12 @@ func (rf *Raft) broadcastHeartbeat(term int) {
 		nextIndex := rf.nextIndex[i]
 		entriesToSend := rf.getEntriesToSend(nextIndex)
 		prevLogIndex := nextIndex - 1
-		prevLogTerm := NilTerm
+		prevLogTerm := NilLogTerm
 		if rf.isLogIndexInRange(prevLogIndex) {
 			prevLogTerm = rf.getEntry(prevLogIndex).Term
 		}
 		args := &AppendEntriesArgs{
-			Term:         term,
+			Term:         rf.currentTerm,
 			LeaderId:     rf.me,
 			PrevLogIndex: prevLogIndex,
 			PrevLogTerm:  prevLogTerm,
@@ -51,7 +47,6 @@ func (rf *Raft) broadcastHeartbeat(term int) {
 				return
 			}
 
-			// >>>>> CRITICAL SECTION >>>>>
 			rf.mu.Lock()
 			defer rf.mu.Unlock()
 
@@ -64,21 +59,25 @@ func (rf *Raft) broadcastHeartbeat(term int) {
 				return
 			}
 
-			// stale reply check
+			// abort if reply is stale
 			if rf.role != roleLeader || rf.currentTerm != args.Term {
 				return
 			}
 
 			if reply.Success {
+				// Leader Rule 3.1:
+				// if successful, update nextIndex and matchIndex for follower
 				rf.nextIndex[i] = nextIndex + len(entriesToSend)
 				rf.matchIndex[i] = prevLogIndex + len(entriesToSend)
-				rf.updateCommitStatus()
+				rf.updateCommitIndex()
 				rf.log("get success heartbeat from S%d NI:%v MI:%v CI:%d", i, rf.nextIndex, rf.matchIndex, rf.commitIndex)
 			} else {
+				// Leader Rule 3.2:
+				// if AppendEntries fails because of log inconsistency:
+				// decrement nextIndex and retry
 				rf.nextIndex[i] = nextIndex - 1
 				rf.log("get fail heartbeat from S%d NI:%v", i, rf.nextIndex)
 			}
-			// >>>>> CRITICAL SECTION >>>>>
 		}(i, peer, args)
 	}
 }

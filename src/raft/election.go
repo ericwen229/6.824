@@ -7,22 +7,14 @@ import (
 	"time"
 )
 
-func randElectionTimeout() time.Duration {
-	minMs := 200
-	maxMs := 800
-	timeoutMs := minMs + rand.Intn(maxMs-minMs)
-	return time.Duration(timeoutMs) * time.Millisecond
-}
-
 func (rf *Raft) electionTimeoutCheckLoop() {
 	for rf.killed() == false {
 		rf.checkElectionTimeout()
-		time.Sleep(5 * time.Millisecond)
+		time.Sleep(loopSmallInterval)
 	}
 }
 
 func (rf *Raft) checkElectionTimeout() {
-	// >>>>> CRITICAL SECTION >>>>>
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
 
@@ -33,7 +25,6 @@ func (rf *Raft) checkElectionTimeout() {
 	// Follower Rule 2:
 	// if election timeout elapses without receiving AppendEntries
 	// RPC from current leader or granting vote to candidate
-
 	// Candidate Rule 4:
 	// if election timeout elapses: start new election
 	if time.Since(rf.electionTimer) >= rf.electionTimeout {
@@ -51,39 +42,35 @@ func (rf *Raft) checkElectionTimeout() {
 		rf.votedFor = rf.me
 		// - reset election timer
 		rf.electionTimer = time.Now()
-
 		// - send RequestVote RPCs to all other servers
 		rf.runForLeader()
 	}
-	// >>>>> CRITICAL SECTION >>>>>
 }
 
 func (rf *Raft) runForLeader() {
-	currentTerm := rf.currentTerm
-	lastLogIndex := rf.getLastLogIndex()
-	lastLogTerm := rf.getLastLogTerm()
-
-	rf.log("start election, reset election timer T:%d LLI:%d LLT:%d ET:%v", rf.currentTerm, lastLogIndex, lastLogTerm, rf.electionTimeout)
-
 	peerNum := len(rf.peers)
 	majorityNum := peerNum/2 + 1
 
-	var mu sync.Mutex
-	upvoteCount := 1
+	var upvoteCountMutex sync.Mutex
+	upvoteCount := 1 // already voted for self
+
+	args := &RequestVoteArgs{
+		Term:         rf.currentTerm,
+		CandidateId:  rf.me,
+		LastLogIndex: rf.getLastLogIndex(),
+		LastLogTerm:  rf.getLastLogTerm(),
+	}
+	rf.log("start election, reset election timer T:%d LLI:%d LLT:%d ET:%v",
+		rf.currentTerm, rf.getLastLogIndex(), rf.getLastLogTerm(), rf.electionTimeout)
 
 	for i, peer := range rf.peers {
 		if rf.me == i {
 			continue
 		}
 
-		go func(i int, peer *labrpc.ClientEnd) {
+		go func(i int, peer *labrpc.ClientEnd, args *RequestVoteArgs) {
 			var reply RequestVoteReply
-			ok := peer.Call("Raft.RequestVote", &RequestVoteArgs{
-				Term:         currentTerm,
-				CandidateId:  rf.me,
-				LastLogIndex: lastLogIndex,
-				LastLogTerm:  lastLogTerm,
-			}, &reply)
+			ok := peer.Call("Raft.RequestVote", args, &reply)
 
 			if !ok {
 				return
@@ -101,14 +88,14 @@ func (rf *Raft) runForLeader() {
 				return
 			}
 
-			// stale reply check
-			if rf.role != roleCandidate || rf.currentTerm != currentTerm {
+			// abort if reply is stale
+			if rf.role != roleCandidate || rf.currentTerm != args.Term {
 				return
 			}
 
 			if reply.VoteGranted {
-				mu.Lock()
-				defer mu.Unlock()
+				upvoteCountMutex.Lock()
+				defer upvoteCountMutex.Unlock()
 
 				upvoteCount++
 				rf.log("get upvote from S%d, total %d", i, upvoteCount)
@@ -118,6 +105,13 @@ func (rf *Raft) runForLeader() {
 					rf.convertToLeader()
 				}
 			}
-		}(i, peer)
+		}(i, peer, args)
 	}
+}
+
+func randElectionTimeout() time.Duration {
+	minMs := electionTimeoutMinMs
+	maxMs := electionTimeoutMaxMs
+	timeoutMs := minMs + rand.Intn(maxMs-minMs)
+	return time.Duration(timeoutMs) * time.Millisecond
 }

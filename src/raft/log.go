@@ -1,47 +1,76 @@
 package raft
 
-import (
-	"fmt"
-	"os"
-	"strings"
-	"time"
-)
-
-var logSwitch bool
-var logStart time.Time
-
-func init() {
-	logSwitch = isLogSwitchOn()
-	logStart = time.Now()
+func (rf *Raft) removeEntriesStartingFrom(startIndex int) {
+	// removeEntriesStartingFrom(4)
+	//   log index: [1 2 3] 4 5 => [1 2 3]
+	// slice index: [0 1 2] 3 4 => [0 1 2]
+	rf.logEntries = rf.logEntries[:startIndex-1]
 }
 
-func isLogSwitchOn() bool {
-	return os.Getenv("DEBUG") != ""
+func (rf *Raft) getLastLogIndex() int {
+	return len(rf.logEntries)
 }
 
-func (rf *Raft) log(fmtStr string, args ...interface{}) {
-	if logSwitch {
-		milli := time.Since(logStart).Milliseconds()
-		prefix := fmt.Sprintf("%06d S%d ", milli, rf.me)
-		fmtStr := prefix + fmtStr
-		fmt.Printf(fmtStr+"\n", args...)
+func (rf *Raft) getLastLogTerm() int {
+	if len(rf.logEntries) == 0 {
+		return NilLogTerm
+	} else {
+		return rf.logEntries[len(rf.logEntries)-1].Term
 	}
 }
 
-func formatEntries(entries []*LogEntry) string {
-	var builder strings.Builder
-	builder.WriteString("[")
-	for i, entry := range entries {
-		if i != 0 {
-			builder.WriteString(",")
-		}
-		builder.WriteString(fmt.Sprintf("%d:", i+1))
-		builder.WriteString(formatEntry(entry))
-	}
-	builder.WriteString("]")
-	return builder.String()
+func (rf *Raft) isLogIndexInRange(index int) bool {
+	return index >= MinLogIndex && index <= rf.getLastLogIndex()
 }
 
-func formatEntry(entry *LogEntry) string {
-	return fmt.Sprintf("{%d:%v}", entry.Term, entry.Command)
+func (rf *Raft) getEntriesToSend(nextIndex int) []*LogEntry {
+	if rf.isLogIndexInRange(nextIndex) {
+		return rf.getCopyOfEntriesFrom(nextIndex)
+	} else {
+		return nil
+	}
+}
+
+func (rf *Raft) getEntry(index int) *LogEntry {
+	return rf.logEntries[index-1]
+}
+
+func (rf *Raft) getCopyOfEntriesFrom(index int) []*LogEntry {
+	src := rf.logEntries[index-1:]
+	if len(src) > appendBatchSize {
+		src = src[:appendBatchSize]
+	}
+	dst := make([]*LogEntry, len(src))
+	copy(dst, src)
+	return dst
+}
+
+func (rf *Raft) hasPrevLogEntry(prevLogIndex, prevLogTerm int) bool {
+	if prevLogIndex == ZeroLogIndex {
+		return true
+	}
+
+	// out of range index also accounts for no prev log entry
+	return rf.isLogIndexInRange(prevLogIndex) && rf.getEntry(prevLogIndex).Term == prevLogTerm
+}
+
+func (rf *Raft) appendLogEntry(entry *LogEntry) {
+	rf.logEntries = append(rf.logEntries, entry)
+}
+
+func (rf *Raft) isMoreUpToDateThanMe(lastIndex, lastTerm int) bool {
+	thisLastIndex := rf.getLastLogIndex()
+	thisLastTerm := rf.getLastLogTerm()
+
+	// Raft determines which of two logs is more up-to-date
+	// by comparing the index and term of the last entries in the logs.
+	// If the logs have last entries with different terms,
+	// then the log with the later term is more up-to-date.
+	// If the logs end with the same term, then whichever log is longer
+	// is more up-to-date.
+	if thisLastTerm != lastTerm {
+		return lastTerm > thisLastTerm
+	} else {
+		return lastIndex >= thisLastIndex
+	}
 }

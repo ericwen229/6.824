@@ -22,12 +22,11 @@ type LogEntry struct {
 
 // Raft implements a single Raft peer.
 type Raft struct {
-	mu        sync.Mutex          // lock to protect shared access to this peer's state
-	peers     []*labrpc.ClientEnd // RPC endpoints of all peers
-	persister *Persister          // object to hold this peer's persisted state
-	me        int                 // this peer's index into peers[]
-	dead      int32               // set by Kill()
-
+	mu              sync.Mutex          // lock to protect shared access to this peer's state
+	peers           []*labrpc.ClientEnd // RPC endpoints of all peers
+	persister       *Persister          // object to hold this peer's persisted state
+	me              int                 // this peer's index into peers[]
+	dead            int32               // set by Kill()
 	currentTerm     int
 	role            Role
 	electionTimer   time.Time
@@ -47,8 +46,6 @@ func (rf *Raft) GetState() (int, bool) {
 	return rf.currentTerm, rf.role == roleLeader
 }
 
-// unprotected state transfer methods
-
 func (rf *Raft) convertToFollower(newTerm int) {
 	rf.currentTerm = newTerm
 	rf.role = roleFollower
@@ -66,42 +63,9 @@ func (rf *Raft) convertToLeader() {
 	rf.matchIndex = make([]int, peerNum)
 }
 
-func (rf *Raft) hasPrevLog(prevLogIndex, prevLogTerm int) bool {
-	if prevLogIndex == 0 {
-		return true
-	}
-	return rf.isLogIndexInRange(prevLogIndex) && rf.getEntry(prevLogIndex).Term == prevLogTerm
-}
-
-func (rf *Raft) appendCommand(command interface{}) {
-	rf.logEntries = append(rf.logEntries, &LogEntry{
-		Command: command,
-		Term:    rf.currentTerm,
-	})
-}
-
-func (rf *Raft) appendLogEntry(entry *LogEntry) {
-	rf.logEntries = append(rf.logEntries, entry)
-}
-
-func (rf *Raft) isMoreUpToDateThanMe(lastIndex, lastTerm int) bool {
-	thisLastIndex := rf.getLastLogIndex()
-	thisLastTerm := rf.getLastLogTerm()
-
-	// Raft determines which of two logs is more up-to-date
-	// by comparing the index and term of the last entries in the logs.
-	// If the logs have last entries with different terms,
-	// then the log with the later term is more up-to-date.
-	// If the logs end with the same term, then whichever log is longer
-	// is more up-to-date.
-	if thisLastTerm != lastTerm {
-		return lastTerm > thisLastTerm
-	} else {
-		return lastIndex >= thisLastIndex
-	}
-}
-
-func (rf *Raft) updateCommitStatus() {
+func (rf *Raft) updateCommitIndex() {
+	// collect matchIndices
+	// for leader himself, matchIndex is its log length
 	var matchIndexList []int
 	for i, index := range rf.matchIndex {
 		if i != rf.me {
@@ -110,73 +74,24 @@ func (rf *Raft) updateCommitStatus() {
 			matchIndexList = append(matchIndexList, len(rf.logEntries))
 		}
 	}
+
+	// sort desc
 	sort.Slice(matchIndexList, func(i, j int) bool {
 		return matchIndexList[i] > matchIndexList[j]
 	})
+
+	// matchIndexList: [9 6 3] 2 1
+	// latestCommitIndex:   ^
 	peerNum := len(rf.peers)
 	majorityNum := peerNum/2 + 1
-	newCommitIndex := matchIndexList[majorityNum-1]
-	if newCommitIndex > rf.commitIndex && rf.getEntry(newCommitIndex).Term == rf.currentTerm {
-		rf.commitIndex = newCommitIndex
+	latestCommitIndex := matchIndexList[majorityNum-1]
+
+	// Leader Rule 4:
+	// if there exists an N such that N > commitIndex,
+	// a majority of matchIndex[i] >= N,
+	// and log[N].term == currentTerm
+	// set commitIndex = N
+	if latestCommitIndex > rf.commitIndex && rf.getEntry(latestCommitIndex).Term == rf.currentTerm {
+		rf.commitIndex = latestCommitIndex
 	}
-}
-
-func (rf *Raft) updateCommitIndex(newIndex int) {
-	rf.commitIndex = newIndex
-}
-
-func (rf *Raft) removeEntriesFrom(startIndex int) {
-	//   log index: 1 2 3 4 5
-	// slice index: 0 1 2 3 4
-	// after removeEntriesFrom(4)
-	//   log index: 1 2 3
-	// slice index: 0 1 2
-	rf.logEntries = rf.logEntries[:startIndex-1]
-}
-
-func (rf *Raft) isLeader() bool {
-	return rf.role == roleLeader
-}
-
-func (rf *Raft) getLastLogIndex() int {
-	return len(rf.logEntries)
-}
-
-func (rf *Raft) getLastLogTerm() int {
-	if len(rf.logEntries) == 0 {
-		return NilTerm
-	} else {
-		return rf.logEntries[len(rf.logEntries)-1].Term
-	}
-}
-
-func (rf *Raft) isLogIndexInRange(index int) bool {
-	return index >= 1 && index <= rf.getLastLogIndex()
-}
-
-func (rf *Raft) isNilLogTerm(term int) bool {
-	return term == NilTerm
-}
-
-func (rf *Raft) isNonNilLogTerm(term int) bool {
-	return term != NilTerm
-}
-
-func (rf *Raft) getEntriesToSend(nextIndex int) []*LogEntry {
-	if rf.isLogIndexInRange(nextIndex) {
-		return rf.getEntries(nextIndex)
-	} else {
-		return nil
-	}
-}
-
-func (rf *Raft) getEntry(index int) *LogEntry {
-	return rf.logEntries[index-1]
-}
-
-func (rf *Raft) getEntries(from int) []*LogEntry {
-	src := rf.logEntries[from-1:]
-	dst := make([]*LogEntry, len(src))
-	copy(dst, src)
-	return dst
 }
