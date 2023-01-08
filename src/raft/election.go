@@ -44,6 +44,9 @@ func (rf *Raft) checkElectionTimeout() {
 		rf.electionTimer = time.Now()
 		// - send RequestVote RPCs to all other servers
 		rf.runForLeader()
+
+		// persistence
+		rf.persist()
 	}
 }
 

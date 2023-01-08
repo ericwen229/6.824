@@ -50,6 +50,9 @@ func (rf *Raft) convertToFollower(newTerm int) {
 	rf.currentTerm = newTerm
 	rf.role = roleFollower
 	rf.votedFor = -1
+
+	// persistence
+	rf.persist()
 }
 
 func (rf *Raft) convertToLeader() {

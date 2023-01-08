@@ -71,6 +71,8 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 
 	reply.Success = true
 	if len(args.Entries) > 0 {
+		hasEntriesChanged := false
+
 		rf.log("entries before append: %v", formatEntries(rf.logEntries))
 		startIndex := args.PrevLogIndex + 1
 		for i, entry := range args.Entries {
@@ -82,13 +84,22 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 					// delete the existing entry and all that follow it
 					rf.removeEntriesStartingFrom(logIndex)
 					rf.appendLogEntry(entry)
+
+					hasEntriesChanged = true
 				}
 			} else {
 				// AppendEntries Rule 4:
 				// append any new entries not already in the log
 				rf.appendLogEntry(entry)
+
+				hasEntriesChanged = true
 			}
 		}
+
+		if hasEntriesChanged {
+			rf.persist()
+		}
+
 		rf.log("entries after append: %v", formatEntries(rf.logEntries))
 	} else {
 		rf.log("no entries to append")
@@ -157,6 +168,9 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 		// if election timeout elapses without receiving AppendEntries
 		// RPC from current leader or granting vote to candidate
 		rf.electionTimer = time.Now()
+
+		// persistence
+		rf.persist()
 	} else {
 		if rf.votedFor != -1 && rf.votedFor != args.CandidateId {
 			rf.log("deny vote to S%d (already voted for S%d T:%d)", args.CandidateId, rf.votedFor, rf.currentTerm)
