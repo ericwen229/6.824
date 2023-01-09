@@ -2,6 +2,7 @@ package raft
 
 import (
 	"6.824/labrpc"
+	"errors"
 	"time"
 )
 
@@ -80,4 +81,20 @@ func (rf *Raft) broadcastHeartbeat() {
 			}
 		}(i, peer, args)
 	}
+}
+
+func (rf *Raft) getEntriesToSend(nextIndex int) []*LogEntry {
+	if !rf.isLogIndexInRange(nextIndex) {
+		return nil
+	}
+
+	entries := rf.getEntriesStartingFrom(nextIndex, appendBatchSize)
+
+	entriesCopy := make([]*LogEntry, len(entries))
+	copyN := copy(entriesCopy, entries)
+	if copyN != len(entries) {
+		panic(errors.New("getEntriesToSend failed to copy all entries"))
+	}
+
+	return entriesCopy
 }

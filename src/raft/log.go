@@ -1,10 +1,53 @@
 package raft
 
+import "fmt"
+
+// ======
+// create
+// ======
+
+func (rf *Raft) appendCommand(command interface{}) {
+	rf.logEntries = append(rf.logEntries, &LogEntry{
+		Command: command,
+		Term:    rf.currentTerm,
+	})
+}
+
+func (rf *Raft) appendLogEntry(entry *LogEntry) {
+	rf.logEntries = append(rf.logEntries, entry)
+}
+
+// ======
+// delete
+// ======
+
 func (rf *Raft) removeEntriesStartingFrom(startIndex int) {
 	// removeEntriesStartingFrom(4)
 	//   log index: [1 2 3] 4 5 => [1 2 3]
 	// slice index: [0 1 2] 3 4 => [0 1 2]
 	rf.logEntries = rf.logEntries[:startIndex-1]
+}
+
+// ====
+// read
+// ====
+
+func (rf *Raft) getEntry(index int) *LogEntry {
+	return rf.logEntries[index-1]
+}
+
+func (rf *Raft) getEntriesStartingFrom(index int, maxNum int) []*LogEntry {
+	// ASSUMPTION: index legal
+
+	entries := rf.logEntries[index-1:]
+
+	// ASSUMPTION: len(entries) > 0
+	if len(entries) == 0 {
+		panic(fmt.Errorf("getEntriesStartingFrom get nil, index %d, entries %v", index, formatEntries(rf.logEntries)))
+	} else if len(entries) > maxNum {
+		entries = entries[:maxNum]
+	}
+	return entries
 }
 
 func (rf *Raft) getLastLogIndex() int {
@@ -19,30 +62,12 @@ func (rf *Raft) getLastLogTerm() int {
 	}
 }
 
+// =====
+// check
+// =====
+
 func (rf *Raft) isLogIndexInRange(index int) bool {
 	return index >= MinLogIndex && index <= rf.getLastLogIndex()
-}
-
-func (rf *Raft) getEntriesToSend(nextIndex int) []*LogEntry {
-	if rf.isLogIndexInRange(nextIndex) {
-		return rf.getCopyOfEntriesFrom(nextIndex)
-	} else {
-		return nil
-	}
-}
-
-func (rf *Raft) getEntry(index int) *LogEntry {
-	return rf.logEntries[index-1]
-}
-
-func (rf *Raft) getCopyOfEntriesFrom(index int) []*LogEntry {
-	src := rf.logEntries[index-1:]
-	if len(src) > appendBatchSize {
-		src = src[:appendBatchSize]
-	}
-	dst := make([]*LogEntry, len(src))
-	copy(dst, src)
-	return dst
 }
 
 func (rf *Raft) hasPrevLogEntry(prevLogIndex, prevLogTerm int) bool {
@@ -52,10 +77,6 @@ func (rf *Raft) hasPrevLogEntry(prevLogIndex, prevLogTerm int) bool {
 
 	// out of range index also accounts for no prev log entry
 	return rf.isLogIndexInRange(prevLogIndex) && rf.getEntry(prevLogIndex).Term == prevLogTerm
-}
-
-func (rf *Raft) appendLogEntry(entry *LogEntry) {
-	rf.logEntries = append(rf.logEntries, entry)
 }
 
 func (rf *Raft) isMoreUpToDateThanMe(lastIndex, lastTerm int) bool {

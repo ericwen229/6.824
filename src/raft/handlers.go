@@ -69,6 +69,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 		return
 	}
 
+	// do append entries
 	reply.Success = true
 	if len(args.Entries) > 0 {
 		hasEntriesChanged := false
