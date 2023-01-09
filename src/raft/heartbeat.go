@@ -76,7 +76,26 @@ func (rf *Raft) broadcastHeartbeat() {
 				// Leader Rule 3.2:
 				// if AppendEntries fails because of log inconsistency:
 				// decrement nextIndex and retry
-				rf.nextIndex[i] = nextIndex - 1
+				xTerm := reply.XTerm
+				xIndex := reply.XIndex
+				xLen := reply.XLen
+
+				if xLen > 0 {
+					// follower doesn't have entry at prevLogIndex at all
+					// decrement to tail of follower
+					rf.nextIndex[i] = xLen + 1
+				} else if idx := rf.getLastLogIndexOfTerm(xTerm); idx != ZeroLogIndex {
+					// follower term mismatch
+					// leader has that term
+					// decrement to tail of term
+					rf.nextIndex[i] = idx + 1
+				} else {
+					// follower term mismatch
+					// leader doesn't have that term
+					// decrement to head to that term
+					rf.nextIndex[i] = xIndex
+				}
+
 				rf.log("get fail heartbeat from S%d NI:%v", i, rf.nextIndex)
 			}
 		}(i, peer, args)

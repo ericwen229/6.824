@@ -1,6 +1,9 @@
 package raft
 
-import "time"
+import (
+	"math"
+	"time"
+)
 
 // parameters open for tuning
 const (
@@ -8,7 +11,7 @@ const (
 	electionTimeoutMinMs = 200
 	electionTimeoutMaxMs = 800
 	heartbeatInterval    = 100 * time.Millisecond
-	appendBatchSize      = 10
+	appendBatchSize      = math.MaxInt
 )
 
 // constants

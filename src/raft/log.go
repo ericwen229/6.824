@@ -54,6 +54,18 @@ func (rf *Raft) getLastLogIndex() int {
 	return len(rf.logEntries)
 }
 
+func (rf *Raft) getLastLogIndexOfTerm(term int) int {
+	idx := ZeroLogIndex
+	for i, e := range rf.logEntries {
+		if e.Term == term {
+			idx = i + 1
+		} else if e.Term > term {
+			break
+		}
+	}
+	return idx
+}
+
 func (rf *Raft) getLastLogTerm() int {
 	if len(rf.logEntries) == 0 {
 		return NilLogTerm
