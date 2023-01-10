@@ -78,12 +78,11 @@ func (rf *Raft) broadcastHeartbeat() {
 				// decrement nextIndex and retry
 				xTerm := reply.XTerm
 				xIndex := reply.XIndex
-				xLen := reply.XLen
 
-				if xLen > 0 {
+				if xTerm == NilLogTerm {
 					// follower doesn't have entry at prevLogIndex at all
 					// decrement to tail of follower
-					rf.nextIndex[i] = xLen + 1
+					rf.nextIndex[i] = xIndex
 				} else if idx := rf.getLastLogIndexOfTerm(xTerm); idx != ZeroLogIndex {
 					// follower term mismatch
 					// leader has that term
@@ -92,7 +91,7 @@ func (rf *Raft) broadcastHeartbeat() {
 				} else {
 					// follower term mismatch
 					// leader doesn't have that term
-					// decrement to head to that term
+					// decrement to head of that term
 					rf.nextIndex[i] = xIndex
 				}
 

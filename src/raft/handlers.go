@@ -18,7 +18,6 @@ type AppendEntriesReply struct {
 	Success bool
 	XTerm   int // term of conflicting entry
 	XIndex  int // index of first entry of XTerm
-	XLen    int // length of log
 }
 
 func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply) {
@@ -68,13 +67,11 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 	// reply false if log doesn't contain an entry at prevLogIndex whose term matches prevLogTerm
 	xTerm := -1
 	xIndex := -1
-	xLen := -1
-	if !rf.hasPrevLogEntry(args.PrevLogIndex, args.PrevLogTerm, &xTerm, &xIndex, &xLen) {
+	if !rf.hasPrevLogEntry(args.PrevLogIndex, args.PrevLogTerm, &xTerm, &xIndex) {
 		rf.log("deny AppendEntries from S%d (E:%v)", args.LeaderId, rf.getEntriesStr())
 		reply.Success = false
 		reply.XTerm = xTerm
 		reply.XIndex = xIndex
-		reply.XLen = xLen
 		return
 	}
 

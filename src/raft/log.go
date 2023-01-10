@@ -95,16 +95,15 @@ func (rf *Raft) isLogIndexInRange(index int) bool {
 	return index >= MinLogIndex && index <= rf.getLastLogIndex()
 }
 
-func (rf *Raft) hasPrevLogEntry(prevLogIndex, prevLogTerm int, xTerm, xIndex, xLen *int) bool {
+func (rf *Raft) hasPrevLogEntry(prevLogIndex, prevLogTerm int, xTerm, xIndex *int) bool {
 	if prevLogIndex == ZeroLogIndex {
 		return true
 	}
 
 	// out of range index also accounts for no prev log entry
 	if !rf.isLogIndexInRange(prevLogIndex) {
-		*xTerm = -1
-		*xIndex = -1
-		*xLen = rf.getLogLength()
+		*xTerm = NilLogTerm
+		*xIndex = rf.getLogLength()
 		return false
 	} else if rf.getEntry(prevLogIndex).Term != prevLogTerm {
 		*xTerm = rf.getEntry(prevLogIndex).Term
@@ -113,7 +112,6 @@ func (rf *Raft) hasPrevLogEntry(prevLogIndex, prevLogTerm int, xTerm, xIndex, xL
 			i--
 		}
 		*xIndex = i
-		*xLen = -1
 		return false
 	} else {
 		return true
