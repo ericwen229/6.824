@@ -15,11 +15,6 @@ const (
 	roleLeader    Role = 3
 )
 
-type LogEntry struct {
-	Command interface{}
-	Term    int
-}
-
 // Raft implements a single Raft peer.
 type Raft struct {
 	mu              sync.Mutex          // lock to protect shared access to this peer's state

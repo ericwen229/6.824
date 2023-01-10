@@ -2,6 +2,11 @@ package raft
 
 import "fmt"
 
+type LogEntry struct {
+	Command interface{}
+	Term    int
+}
+
 // ======
 // create
 // ======

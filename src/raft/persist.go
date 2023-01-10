@@ -23,8 +23,6 @@ func (rf *Raft) readPersist(data []byte) {
 		return
 	}
 
-	// Your code here (2C).
-	// Example:
 	readBuffer := bytes.NewBuffer(data)
 	decoder := labgob.NewDecoder(readBuffer)
 	var currentTerm int

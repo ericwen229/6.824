@@ -4,9 +4,6 @@ import "time"
 
 func (rf *Raft) commitLoop(applyCh chan ApplyMsg) {
 	for rf.killed() == false {
-		var entry *LogEntry
-		var commandIndex int
-
 		rf.mu.Lock()
 		if rf.commitIndex <= rf.lastApplied {
 			rf.mu.Unlock()
@@ -20,8 +17,8 @@ func (rf *Raft) commitLoop(applyCh chan ApplyMsg) {
 		// if commitIndex > lastApplied:
 		// increment lastApplied, apply log[lastApplied] to state machine
 		rf.lastApplied++
-		entry = rf.getEntry(rf.lastApplied)
-		commandIndex = rf.lastApplied
+		entry := rf.getEntry(rf.lastApplied)
+		commandIndex := rf.lastApplied
 		rf.log("commit %d:{%d:%v}", commandIndex, entry.Term, entry.Command)
 		rf.mu.Unlock()
 
