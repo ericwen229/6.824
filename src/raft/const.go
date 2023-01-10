@@ -8,8 +8,8 @@ import (
 // parameters open for tuning
 const (
 	loopSmallInterval    = 5 * time.Millisecond
-	electionTimeoutMinMs = 200
-	electionTimeoutMaxMs = 800
+	electionTimeoutMinMs = 180
+	electionTimeoutMaxMs = 600
 	heartbeatInterval    = 100 * time.Millisecond
 	appendBatchSize      = math.MaxInt
 )
