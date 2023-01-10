@@ -78,6 +78,10 @@ func (rf *Raft) getLogLength() int {
 	return len(rf.logEntries)
 }
 
+func (rf *Raft) getEntriesStr() string {
+	return formatEntries(rf.logEntries)
+}
+
 // =====
 // check
 // =====

@@ -70,7 +70,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 	xIndex := -1
 	xLen := -1
 	if !rf.hasPrevLogEntry(args.PrevLogIndex, args.PrevLogTerm, &xTerm, &xIndex, &xLen) {
-		rf.log("deny AppendEntries from S%d (E:%v)", args.LeaderId, formatEntries(rf.logEntries))
+		rf.log("deny AppendEntries from S%d (E:%v)", args.LeaderId, rf.getEntriesStr())
 		reply.Success = false
 		reply.XTerm = xTerm
 		reply.XIndex = xIndex
@@ -83,7 +83,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 	if len(args.Entries) > 0 {
 		hasEntriesChanged := false
 
-		rf.log("entries before append: %v", formatEntries(rf.logEntries))
+		rf.log("entries before append: %v", rf.getEntriesStr())
 		startIndex := args.PrevLogIndex + 1
 		for i, entry := range args.Entries {
 			logIndex := startIndex + i
@@ -110,7 +110,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 			rf.persist()
 		}
 
-		rf.log("entries after append: %v", formatEntries(rf.logEntries))
+		rf.log("entries after append: %v", rf.getEntriesStr())
 	} else {
 		rf.log("no entries to append")
 	}

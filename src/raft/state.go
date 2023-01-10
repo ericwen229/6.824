@@ -74,7 +74,7 @@ func (rf *Raft) updateCommitIndex() {
 		if i != rf.me {
 			matchIndexList = append(matchIndexList, index)
 		} else {
-			matchIndexList = append(matchIndexList, len(rf.logEntries))
+			matchIndexList = append(matchIndexList, rf.getLogLength())
 		}
 	}
 

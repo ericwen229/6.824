@@ -57,7 +57,7 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 	// persistence
 	rf.persist()
 
-	rf.log("receive {%d:%v}, E:%v", rf.currentTerm, command, formatEntries(rf.logEntries))
+	rf.log("receive {%d:%v}, E:%v", rf.currentTerm, command, rf.getEntriesStr())
 
 	return rf.getLastLogIndex(), rf.currentTerm, true
 }
