@@ -15,11 +15,6 @@ const (
 	roleLeader    Role = 3
 )
 
-type LogEntry struct {
-	Command interface{}
-	Term    int
-}
-
 // Raft implements a single Raft peer.
 type Raft struct {
 	mu              sync.Mutex          // lock to protect shared access to this peer's state
@@ -50,6 +45,9 @@ func (rf *Raft) convertToFollower(newTerm int) {
 	rf.currentTerm = newTerm
 	rf.role = roleFollower
 	rf.votedFor = -1
+
+	// persistence
+	rf.persist()
 }
 
 func (rf *Raft) convertToLeader() {
@@ -71,7 +69,7 @@ func (rf *Raft) updateCommitIndex() {
 		if i != rf.me {
 			matchIndexList = append(matchIndexList, index)
 		} else {
-			matchIndexList = append(matchIndexList, len(rf.logEntries))
+			matchIndexList = append(matchIndexList, rf.getLogLength())
 		}
 	}
 

@@ -52,11 +52,12 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 	// append entry to local log,
 	// respond after entry applied to state machine
 	// (we implement differently in 6.824 lab)
-	rf.logEntries = append(rf.logEntries, &LogEntry{
-		Command: command,
-		Term:    rf.currentTerm,
-	})
-	rf.log("receive {%d:%v}, E:%v", rf.currentTerm, command, formatEntries(rf.logEntries))
+	rf.appendCommand(command)
+
+	// persistence
+	rf.persist()
+
+	rf.log("receive {%d:%v}, E:%v", rf.currentTerm, command, rf.getEntriesStr())
 
 	return rf.getLastLogIndex(), rf.currentTerm, true
 }

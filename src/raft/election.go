@@ -25,6 +25,7 @@ func (rf *Raft) checkElectionTimeout() {
 	// Follower Rule 2:
 	// if election timeout elapses without receiving AppendEntries
 	// RPC from current leader or granting vote to candidate
+
 	// Candidate Rule 4:
 	// if election timeout elapses: start new election
 	if time.Since(rf.electionTimer) >= rf.electionTimeout {
@@ -44,6 +45,9 @@ func (rf *Raft) checkElectionTimeout() {
 		rf.electionTimer = time.Now()
 		// - send RequestVote RPCs to all other servers
 		rf.runForLeader()
+
+		// persistence
+		rf.persist()
 	}
 }
 

@@ -1,39 +1,42 @@
 package raft
 
-//
-// save Raft's persistent state to stable storage,
-// where it can later be retrieved after a crash and restart.
-// see paper's Figure 2 for a description of what should be persistent.
-//
+import (
+	"6.824/labgob"
+	"bytes"
+)
+
 func (rf *Raft) persist() {
-	// Your code here (2C).
-	// Example:
-	// w := new(bytes.Buffer)
-	// e := labgob.NewEncoder(w)
-	// e.Encode(rf.xxx)
-	// e.Encode(rf.yyy)
-	// data := w.Bytes()
-	// rf.persister.SaveRaftState(data)
+	var writeBuffer bytes.Buffer
+	encoder := labgob.NewEncoder(&writeBuffer)
+	var err error
+	err = encoder.Encode(rf.currentTerm)
+	err = encoder.Encode(rf.votedFor)
+	err = encoder.Encode(rf.logEntries)
+	if err != nil {
+		panic(err)
+	}
+	rf.persister.SaveRaftState(writeBuffer.Bytes())
 }
 
-//
-// restore previously persisted state.
-//
 func (rf *Raft) readPersist(data []byte) {
 	if data == nil || len(data) < 1 { // bootstrap without any state?
 		return
 	}
-	// Your code here (2C).
-	// Example:
-	// r := bytes.NewBuffer(data)
-	// d := labgob.NewDecoder(r)
-	// var xxx
-	// var yyy
-	// if d.Decode(&xxx) != nil ||
-	//    d.Decode(&yyy) != nil {
-	//   error...
-	// } else {
-	//   rf.xxx = xxx
-	//   rf.yyy = yyy
-	// }
+
+	readBuffer := bytes.NewBuffer(data)
+	decoder := labgob.NewDecoder(readBuffer)
+	var currentTerm int
+	var votedFor int
+	var logEntries []*LogEntry
+	var err error
+	err = decoder.Decode(&currentTerm)
+	err = decoder.Decode(&votedFor)
+	err = decoder.Decode(&logEntries)
+	if err != nil {
+		panic(err)
+	}
+
+	rf.currentTerm = currentTerm
+	rf.votedFor = votedFor
+	rf.logEntries = logEntries
 }

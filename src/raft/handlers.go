@@ -16,6 +16,8 @@ type AppendEntriesArgs struct {
 type AppendEntriesReply struct {
 	Term    int
 	Success bool
+	XTerm   int // term of conflicting entry
+	XIndex  int // index of first entry of XTerm
 }
 
 func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply) {
@@ -63,15 +65,22 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 
 	// AppendEntries Rule 2:
 	// reply false if log doesn't contain an entry at prevLogIndex whose term matches prevLogTerm
-	if !rf.hasPrevLogEntry(args.PrevLogIndex, args.PrevLogTerm) {
-		rf.log("deny AppendEntries from S%d (E:%v)", args.LeaderId, formatEntries(rf.logEntries))
+	xTerm := -1
+	xIndex := -1
+	if !rf.hasPrevLogEntry(args.PrevLogIndex, args.PrevLogTerm, &xTerm, &xIndex) {
+		rf.log("deny AppendEntries from S%d (E:%v)", args.LeaderId, rf.getEntriesStr())
 		reply.Success = false
+		reply.XTerm = xTerm
+		reply.XIndex = xIndex
 		return
 	}
 
+	// do append entries
 	reply.Success = true
 	if len(args.Entries) > 0 {
-		rf.log("entries before append: %v", formatEntries(rf.logEntries))
+		hasEntriesChanged := false
+
+		rf.log("entries before append: %v", rf.getEntriesStr())
 		startIndex := args.PrevLogIndex + 1
 		for i, entry := range args.Entries {
 			logIndex := startIndex + i
@@ -82,14 +91,23 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 					// delete the existing entry and all that follow it
 					rf.removeEntriesStartingFrom(logIndex)
 					rf.appendLogEntry(entry)
+
+					hasEntriesChanged = true
 				}
 			} else {
 				// AppendEntries Rule 4:
 				// append any new entries not already in the log
 				rf.appendLogEntry(entry)
+
+				hasEntriesChanged = true
 			}
 		}
-		rf.log("entries after append: %v", formatEntries(rf.logEntries))
+
+		if hasEntriesChanged {
+			rf.persist()
+		}
+
+		rf.log("entries after append: %v", rf.getEntriesStr())
 	} else {
 		rf.log("no entries to append")
 	}
@@ -157,6 +175,9 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 		// if election timeout elapses without receiving AppendEntries
 		// RPC from current leader or granting vote to candidate
 		rf.electionTimer = time.Now()
+
+		// persistence
+		rf.persist()
 	} else {
 		if rf.votedFor != -1 && rf.votedFor != args.CandidateId {
 			rf.log("deny vote to S%d (already voted for S%d T:%d)", args.CandidateId, rf.votedFor, rf.currentTerm)

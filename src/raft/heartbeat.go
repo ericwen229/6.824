@@ -2,6 +2,7 @@ package raft
 
 import (
 	"6.824/labrpc"
+	"errors"
 	"time"
 )
 
@@ -75,9 +76,43 @@ func (rf *Raft) broadcastHeartbeat() {
 				// Leader Rule 3.2:
 				// if AppendEntries fails because of log inconsistency:
 				// decrement nextIndex and retry
-				rf.nextIndex[i] = nextIndex - 1
+				xTerm := reply.XTerm
+				xIndex := reply.XIndex
+
+				if xTerm == NilLogTerm {
+					// follower doesn't have entry at prevLogIndex at all
+					// decrement to tail of follower
+					rf.nextIndex[i] = xIndex
+				} else if idx := rf.getLastLogIndexOfTerm(xTerm); idx != ZeroLogIndex {
+					// follower term mismatch
+					// leader has that term
+					// decrement to tail of term
+					rf.nextIndex[i] = idx + 1
+				} else {
+					// follower term mismatch
+					// leader doesn't have that term
+					// decrement to head of that term
+					rf.nextIndex[i] = xIndex
+				}
+
 				rf.log("get fail heartbeat from S%d NI:%v", i, rf.nextIndex)
 			}
 		}(i, peer, args)
 	}
+}
+
+func (rf *Raft) getEntriesToSend(nextIndex int) []*LogEntry {
+	if !rf.isLogIndexInRange(nextIndex) {
+		return nil
+	}
+
+	entries := rf.getEntriesStartingFrom(nextIndex, appendBatchSize)
+
+	entriesCopy := make([]*LogEntry, len(entries))
+	copyN := copy(entriesCopy, entries)
+	if copyN != len(entries) {
+		panic(errors.New("getEntriesToSend failed to copy all entries"))
+	}
+
+	return entriesCopy
 }
