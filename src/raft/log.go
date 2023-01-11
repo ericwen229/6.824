@@ -7,6 +7,36 @@ type LogEntry struct {
 	Term    int
 }
 
+func (rf *Raft) getPrevLogIndex() int {
+	if rf.snapshot == nil {
+		return ZeroLogIndex
+	} else {
+		return rf.snapshot.lastIncludedLogIndex
+	}
+}
+
+func (rf *Raft) getPrevLogTerm() int {
+	if rf.snapshot == nil {
+		return NilLogTerm
+	} else {
+		return rf.snapshot.lastIncludedLogTerm
+	}
+}
+
+// li2si converts log index to slice index
+func (rf *Raft) li2si(logIndex int) int {
+	// slice index:    0 1 2 3 4
+	// log index:   [3]4 5 6 7 8
+	return logIndex - rf.getPrevLogIndex() - 1
+}
+
+// si2li converts slice index to log index
+func (rf *Raft) si2li(sliceIndex int) int {
+	// slice index:    0 1 2 3 4
+	// log index:   [3]4 5 6 7 8
+	return sliceIndex + rf.getPrevLogIndex() + 1
+}
+
 // ======
 // create
 // ======
@@ -27,28 +57,25 @@ func (rf *Raft) appendLogEntry(entry *LogEntry) {
 // ======
 
 func (rf *Raft) removeEntriesStartingFrom(startIndex int) {
-	// removeEntriesStartingFrom(4)
-	//   log index: [1 2 3] 4 5 => [1 2 3]
-	// slice index: [0 1 2] 3 4 => [0 1 2]
-	rf.logEntries = rf.logEntries[:startIndex-1]
+	rf.logEntries = rf.logEntries[:rf.li2si(startIndex)]
 }
 
 // ====
 // read
 // ====
 
-func (rf *Raft) getEntry(index int) *LogEntry {
-	return rf.logEntries[index-1]
+func (rf *Raft) getEntry(logIndex int) *LogEntry {
+	return rf.logEntries[rf.li2si(logIndex)]
 }
 
-func (rf *Raft) getEntriesStartingFrom(index int, maxNum int) []*LogEntry {
-	// ASSUMPTION: index legal
+func (rf *Raft) getEntriesStartingFrom(logIndex int, maxNum int) []*LogEntry {
+	// ASSUMPTION: logIndex legal
 
-	entries := rf.logEntries[index-1:]
+	entries := rf.logEntries[rf.li2si(logIndex):]
 
 	// ASSUMPTION: len(entries) > 0
 	if len(entries) == 0 {
-		panic(fmt.Errorf("getEntriesStartingFrom get nil, index %d, entries %v", index, formatEntries(rf.logEntries)))
+		panic(fmt.Errorf("getEntriesStartingFrom get nil, logIndex %d, entries %v", logIndex, formatEntries(rf.logEntries)))
 	} else if len(entries) > maxNum {
 		entries = entries[:maxNum]
 	}
@@ -56,31 +83,27 @@ func (rf *Raft) getEntriesStartingFrom(index int, maxNum int) []*LogEntry {
 }
 
 func (rf *Raft) getLastLogIndex() int {
-	return len(rf.logEntries)
-}
-
-func (rf *Raft) getLastLogIndexOfTerm(term int) int {
-	idx := ZeroLogIndex
-	for i, e := range rf.logEntries {
-		if e.Term == term {
-			idx = i + 1
-		} else if e.Term > term {
-			break
-		}
-	}
-	return idx
+	return rf.getPrevLogIndex() + len(rf.logEntries)
 }
 
 func (rf *Raft) getLastLogTerm() int {
 	if len(rf.logEntries) == 0 {
-		return NilLogTerm
+		return rf.getPrevLogTerm()
 	} else {
 		return rf.logEntries[len(rf.logEntries)-1].Term
 	}
 }
 
-func (rf *Raft) getLogLength() int {
-	return len(rf.logEntries)
+func (rf *Raft) getLastLogIndexOfTerm(term int) int {
+	logIndex := ZeroLogIndex
+	for i, e := range rf.logEntries {
+		if e.Term == term {
+			logIndex = rf.si2li(i)
+		} else if e.Term > term {
+			break
+		}
+	}
+	return logIndex
 }
 
 func (rf *Raft) getEntriesStr() string {
@@ -92,30 +115,52 @@ func (rf *Raft) getEntriesStr() string {
 // =====
 
 func (rf *Raft) isLogIndexInRange(index int) bool {
-	return index >= MinLogIndex && index <= rf.getLastLogIndex()
+	return index > rf.getPrevLogIndex() && index <= rf.getLastLogIndex()
 }
 
 func (rf *Raft) hasPrevLogEntry(prevLogIndex, prevLogTerm int, xTerm, xIndex *int) bool {
+	// no previous log to compare
 	if prevLogIndex == ZeroLogIndex {
 		return true
 	}
 
-	// out of range index also accounts for no prev log entry
+	// snapshot match
+	if prevLogIndex == rf.getPrevLogIndex() {
+		if prevLogTerm == rf.getPrevLogTerm() {
+			return true
+		} else {
+			// mismatch theoretically impossible
+			// only committed entries are applied to snapshot
+			panic(fmt.Errorf(
+				"mismatch between prev and snapshot, prev %d:%d, snapshot %d:%d",
+				prevLogIndex,
+				prevLogTerm,
+				rf.getPrevLogIndex(),
+				rf.getPrevLogTerm()))
+		}
+	}
+
+	// out of range index
+	// also accounts for no prev log entry
 	if !rf.isLogIndexInRange(prevLogIndex) {
 		*xTerm = NilLogTerm
-		*xIndex = rf.getLogLength()
+		*xIndex = rf.getLastLogIndex()
 		return false
-	} else if rf.getEntry(prevLogIndex).Term != prevLogTerm {
-		*xTerm = rf.getEntry(prevLogIndex).Term
-		i := prevLogIndex
-		for rf.isLogIndexInRange(i-1) && rf.getEntry(i-1).Term == rf.getEntry(prevLogIndex).Term {
-			i--
-		}
-		*xIndex = i
-		return false
-	} else {
+	}
+
+	// term match
+	if rf.getEntry(prevLogIndex).Term == prevLogTerm {
 		return true
 	}
+
+	// term mismatch
+	*xTerm = rf.getEntry(prevLogIndex).Term
+	i := prevLogIndex
+	for rf.isLogIndexInRange(i-1) && rf.getEntry(i-1).Term == rf.getEntry(prevLogIndex).Term {
+		i--
+	}
+	*xIndex = i
+	return false
 }
 
 func (rf *Raft) isMoreUpToDateThanMe(lastIndex, lastTerm int) bool {

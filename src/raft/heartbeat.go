@@ -24,11 +24,17 @@ func (rf *Raft) broadcastHeartbeat() {
 		}
 
 		nextIndex := rf.nextIndex[i]
-		entriesToSend := rf.getEntriesToSend(nextIndex)
+		entriesToSend, ok := rf.getEntriesToSend(nextIndex)
+		if !ok {
+			// TODO: install snapshot
+		}
+
 		prevLogIndex := nextIndex - 1
 		prevLogTerm := NilLogTerm
 		if rf.isLogIndexInRange(prevLogIndex) {
 			prevLogTerm = rf.getEntry(prevLogIndex).Term
+		} else if prevLogIndex == rf.getPrevLogIndex() {
+			prevLogTerm = rf.getPrevLogTerm()
 		}
 		args := &AppendEntriesArgs{
 			Term:         rf.currentTerm,
@@ -82,7 +88,7 @@ func (rf *Raft) broadcastHeartbeat() {
 				if xTerm == NilLogTerm {
 					// follower doesn't have entry at prevLogIndex at all
 					// decrement to tail of follower
-					rf.nextIndex[i] = xIndex
+					rf.nextIndex[i] = xIndex + 1
 				} else if idx := rf.getLastLogIndexOfTerm(xTerm); idx != ZeroLogIndex {
 					// follower term mismatch
 					// leader has that term
@@ -101,9 +107,18 @@ func (rf *Raft) broadcastHeartbeat() {
 	}
 }
 
-func (rf *Raft) getEntriesToSend(nextIndex int) []*LogEntry {
-	if !rf.isLogIndexInRange(nextIndex) {
-		return nil
+func (rf *Raft) getEntriesToSend(nextIndex int) ([]*LogEntry, bool) {
+	// requested entry has been truncated
+	// and replaced by snapshot
+	// cannot get entries to send
+	if nextIndex <= rf.getPrevLogIndex() {
+		return nil, false
+	}
+
+	// follower is up-to-date
+	// no need to send any entries
+	if nextIndex > rf.getLastLogIndex() {
+		return nil, true
 	}
 
 	entries := rf.getEntriesStartingFrom(nextIndex, appendBatchSize)
@@ -114,5 +129,5 @@ func (rf *Raft) getEntriesToSend(nextIndex int) []*LogEntry {
 		panic(errors.New("getEntriesToSend failed to copy all entries"))
 	}
 
-	return entriesCopy
+	return entriesCopy, true
 }

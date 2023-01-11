@@ -27,6 +27,7 @@ type Raft struct {
 	electionTimer   time.Time
 	electionTimeout time.Duration
 	votedFor        int
+	snapshot        *Snapshot
 	logEntries      []*LogEntry
 	commitIndex     int
 	lastApplied     int
@@ -69,7 +70,7 @@ func (rf *Raft) updateCommitIndex() {
 		if i != rf.me {
 			matchIndexList = append(matchIndexList, index)
 		} else {
-			matchIndexList = append(matchIndexList, rf.getLogLength())
+			matchIndexList = append(matchIndexList, rf.getLastLogIndex())
 		}
 	}
 

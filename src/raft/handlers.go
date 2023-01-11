@@ -65,7 +65,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 
 	// AppendEntries Rule 2:
 	// reply false if log doesn't contain an entry at prevLogIndex whose term matches prevLogTerm
-	xTerm := -1
+	xTerm := NilLogTerm
 	xIndex := -1
 	if !rf.hasPrevLogEntry(args.PrevLogIndex, args.PrevLogTerm, &xTerm, &xIndex) {
 		rf.log("deny AppendEntries from S%d (E:%v)", args.LeaderId, rf.getEntriesStr())

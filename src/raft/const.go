@@ -17,6 +17,5 @@ const (
 // constants
 const (
 	ZeroLogIndex = 0
-	MinLogIndex  = 1
 	NilLogTerm   = -1
 )
