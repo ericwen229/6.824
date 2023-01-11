@@ -59,6 +59,9 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 
 	rf.log("receive {%d:%v}, E:%v", rf.currentTerm, command, rf.getEntriesStr())
 
+	// broadcast to followers
+	rf.broadcastHeartbeat()
+
 	return rf.getLastLogIndex(), rf.currentTerm, true
 }
 
