@@ -60,6 +60,24 @@ func (rf *Raft) removeEntriesStartingFrom(startIndex int) {
 	rf.logEntries = rf.logEntries[:rf.li2si(startIndex)]
 }
 
+func (rf *Raft) installSnapshot(logIndex int, snapshot []byte) {
+	if !rf.isLogIndexInRange(logIndex) {
+		return
+	}
+
+	sliceIndex := rf.li2si(logIndex)
+
+	entry := rf.getEntry(logIndex)
+	lastIncludedIndex := logIndex
+	lastIncludedTerm := entry.Term
+	rf.snapshot = &Snapshot{
+		data:                 snapshot,
+		lastIncludedLogIndex: lastIncludedIndex,
+		lastIncludedLogTerm:  lastIncludedTerm,
+	}
+	rf.logEntries = rf.logEntries[sliceIndex+1:]
+}
+
 // ====
 // read
 // ====
