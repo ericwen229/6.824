@@ -48,7 +48,7 @@ func (rf *Raft) convertToFollower(newTerm int) {
 	rf.votedFor = -1
 
 	// persistence
-	rf.persist()
+	rf.save()
 }
 
 func (rf *Raft) convertToLeader() {

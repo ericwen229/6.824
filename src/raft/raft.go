@@ -30,7 +30,7 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.log("created")
 
 	// initialize from state persisted before a crash
-	rf.readPersist(persister.ReadRaftState())
+	rf.load()
 
 	go rf.electionTimeoutCheckLoop()
 	go rf.heartbeatLoop()
@@ -55,7 +55,7 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 	rf.appendCommand(command)
 
 	// persistence
-	rf.persist()
+	rf.save()
 
 	rf.log("receive {%d:%v}, E:%v", rf.currentTerm, command, rf.getEntriesStr())
 

@@ -104,7 +104,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 		}
 
 		if hasEntriesChanged {
-			rf.persist()
+			rf.save()
 		}
 
 		rf.log("entries after append: %v", rf.getEntriesStr())
@@ -177,7 +177,7 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 		rf.electionTimer = time.Now()
 
 		// persistence
-		rf.persist()
+		rf.save()
 	} else {
 		if rf.votedFor != -1 && rf.votedFor != args.CandidateId {
 			rf.log("deny vote to S%d (already voted for S%d T:%d)", args.CandidateId, rf.votedFor, rf.currentTerm)

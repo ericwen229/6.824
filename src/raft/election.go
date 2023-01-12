@@ -47,7 +47,7 @@ func (rf *Raft) checkElectionTimeout() {
 		rf.runForLeader()
 
 		// persistence
-		rf.persist()
+		rf.save()
 	}
 }
 
