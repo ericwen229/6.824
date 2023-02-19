@@ -26,6 +26,7 @@ func (rf *Raft) broadcastHeartbeat() {
 		nextIndex := rf.nextIndex[i]
 		entriesToSend, ok := rf.getEntriesToSend(nextIndex)
 		if !ok {
+			panic(errors.New("need to install snapshot"))
 			// TODO: install snapshot
 		}
 
@@ -44,7 +45,7 @@ func (rf *Raft) broadcastHeartbeat() {
 			Entries:      entriesToSend,
 			LeaderCommit: rf.commitIndex,
 		}
-		rf.log("send heartbeat to S%d T:%d PLI:%d PLT:%d CI:%d E:%s", i, rf.currentTerm, prevLogIndex, prevLogTerm, rf.commitIndex, formatEntries(entriesToSend))
+		rf.log("send heartbeat to S%d T:%d PLI:%d PLT:%d CI:%d E:%s", i, rf.currentTerm, prevLogIndex, prevLogTerm, rf.commitIndex, rf.formatEntries(entriesToSend))
 
 		go func(i int, peer *labrpc.ClientEnd, args *AppendEntriesArgs) {
 			var reply AppendEntriesReply
@@ -111,6 +112,7 @@ func (rf *Raft) getEntriesToSend(nextIndex int) ([]*LogEntry, bool) {
 	// requested entry has been truncated
 	// and replaced by snapshot
 	// cannot get entries to send
+	//
 	if nextIndex <= rf.getPrevLogIndex() {
 		return nil, false
 	}

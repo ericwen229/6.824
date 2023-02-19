@@ -1,6 +1,8 @@
 package raft
 
-import "fmt"
+import (
+	"fmt"
+)
 
 type LogEntry struct {
 	Command interface{}
@@ -93,7 +95,7 @@ func (rf *Raft) getEntriesStartingFrom(logIndex int, maxNum int) []*LogEntry {
 
 	// ASSUMPTION: len(entries) > 0
 	if len(entries) == 0 {
-		panic(fmt.Errorf("getEntriesStartingFrom get nil, logIndex %d, entries %v", logIndex, formatEntries(rf.logEntries)))
+		panic(fmt.Errorf("getEntriesStartingFrom get nil, logIndex %d, entries %v", logIndex, rf.formatEntries(rf.logEntries)))
 	} else if len(entries) > maxNum {
 		entries = entries[:maxNum]
 	}
@@ -125,7 +127,7 @@ func (rf *Raft) getLastLogIndexOfTerm(term int) int {
 }
 
 func (rf *Raft) getEntriesStr() string {
-	return formatEntries(rf.logEntries)
+	return rf.formatEntries(rf.logEntries)
 }
 
 // =====
@@ -149,12 +151,14 @@ func (rf *Raft) hasPrevLogEntry(prevLogIndex, prevLogTerm int, xTerm, xIndex *in
 		} else {
 			// mismatch theoretically impossible
 			// only committed entries are applied to snapshot
-			panic(fmt.Errorf(
+			err := fmt.Errorf(
 				"mismatch between prev and snapshot, prev %d:%d, snapshot %d:%d",
 				prevLogIndex,
 				prevLogTerm,
 				rf.getPrevLogIndex(),
-				rf.getPrevLogTerm()))
+				rf.getPrevLogTerm())
+			rf.log(err.Error())
+			panic(err)
 		}
 	}
 

@@ -28,14 +28,14 @@ func (rf *Raft) log(fmtStr string, args ...interface{}) {
 	}
 }
 
-func formatEntries(entries []*LogEntry) string {
+func (rf *Raft) formatEntries(entries []*LogEntry) string {
 	var builder strings.Builder
 	builder.WriteString("[")
 	for i, entry := range entries {
 		if i != 0 {
 			builder.WriteString(",")
 		}
-		builder.WriteString(fmt.Sprintf("%d:", i+1))
+		builder.WriteString(fmt.Sprintf("%d:", rf.getPrevLogIndex()+i+1))
 		builder.WriteString(formatEntry(entry))
 	}
 	builder.WriteString("]")

@@ -14,6 +14,11 @@ func (rf *Raft) Snapshot(logIndex int, snapshot []byte) {
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
 
+	rf.log("received snapshot #%d", logIndex)
+
 	rf.installSnapshot(logIndex, snapshot)
+
+	rf.log("log after snapshot: [%d:%d] %v", rf.getPrevLogIndex(), rf.getPrevLogTerm(), rf.getEntriesStr())
+
 	rf.save()
 }
