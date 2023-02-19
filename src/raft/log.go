@@ -68,16 +68,53 @@ func (rf *Raft) installSnapshot(logIndex int, snapshot []byte) {
 	}
 
 	sliceIndex := rf.li2si(logIndex)
-
 	entry := rf.getEntry(logIndex)
-	lastIncludedIndex := logIndex
-	lastIncludedTerm := entry.Term
 	rf.snapshot = &Snapshot{
 		data:                 snapshot,
-		lastIncludedLogIndex: lastIncludedIndex,
-		lastIncludedLogTerm:  lastIncludedTerm,
+		lastIncludedLogIndex: logIndex,
+		lastIncludedLogTerm:  entry.Term,
 	}
 	rf.logEntries = rf.logEntries[sliceIndex+1:]
+}
+
+func (rf *Raft) installOrExtendSnapshot(logIndex, logTerm int, snapshot []byte) {
+	if logIndex <= rf.getPrevLogIndex() {
+		// has newer snapshot
+		// no need to do anything
+		return
+	}
+
+	sliceIndex := rf.li2si(logIndex)
+
+	// InstallSnapshot Rule 5:
+	// save snapshot file, discard any existing or partial snapshot with
+	// a smaller index
+	rf.snapshot = &Snapshot{
+		data:                 snapshot,
+		lastIncludedLogIndex: logIndex,
+		lastIncludedLogTerm:  logTerm,
+	}
+	if logIndex < rf.getLastLogIndex() {
+		// InstallSnapshot Rule 6:
+		// if existing log entry has same index and term as snapshot's
+		// last included entry, retain log entries following it and reply
+		rf.logEntries = rf.logEntries[sliceIndex+1:]
+	} else {
+		// InstallSnapshot Rule 7:
+		// discard the entire log
+		rf.logEntries = nil
+
+		// InstallSnapshot Rule 8:
+		// reset state machine using snapshot contents
+		go func() {
+			rf.applyCh <- ApplyMsg{
+				SnapshotValid: true,
+				Snapshot:      snapshot,
+				SnapshotIndex: logIndex,
+				SnapshotTerm:  logTerm,
+			}
+		}()
+	}
 }
 
 // ====

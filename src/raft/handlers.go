@@ -104,6 +104,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 		}
 
 		if hasEntriesChanged {
+			// persistence
 			rf.save()
 		}
 
@@ -185,4 +186,64 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 			rf.log("deny vote to S%d (this I:%d T:%d > I:%d T:%d)", args.CandidateId, rf.getLastLogIndex(), rf.getLastLogTerm(), args.LastLogIndex, args.LastLogTerm)
 		}
 	}
+}
+
+type InstallSnapshotArgs struct {
+	Term              int
+	LeaderId          int
+	LastIncludedIndex int
+	LastIncludedTerm  int
+	data              []byte
+}
+
+type InstallSnapshotReply struct {
+	Term int
+}
+
+func (rf *Raft) InstallSnapshot(args *InstallSnapshotArgs, reply *InstallSnapshotReply) {
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
+
+	// All Server Rule 2:
+	// if RPC request or response contains term T > currentTerm
+	// set currentTerm = T, convert to follower
+	if args.Term > rf.currentTerm {
+		if rf.role == roleFollower {
+			rf.log("advance term T:%d -> T:%d (InstallSnapshot args from S%d)", rf.currentTerm, args.Term, args.LeaderId)
+		} else {
+			rf.log("convert to follower T:%d -> T:%d (InstallSnapshot args from S%d)", rf.currentTerm, args.Term, args.LeaderId)
+		}
+		rf.convertToFollower(args.Term)
+	}
+
+	// InstallSnapshot Rule 1:
+	// reply immediately if term < currentTerm
+	if args.Term < rf.currentTerm {
+		rf.log("deny InstallSnapshot from S%d (T%d < self T:%d)", args.LeaderId, args.Term, rf.currentTerm)
+		reply.Term = rf.currentTerm
+		return
+	}
+
+	// INVARIANT: args.Term == rf.currentTerm
+
+	reply.Term = rf.currentTerm
+
+	// InstallSnapshot Rule 2:
+	// create new file if first trunk
+	// (which is always true)
+	// NOOP
+
+	// InstallSnapshot Rule 3:
+	// write data into snapshot file at given offset
+	// NOOP
+
+	// InstallSnapshot Rule 4:
+	// reply and wait for more data chunks if done is false
+	// (which isn't considered here)
+	// NOOP
+
+	rf.installOrExtendSnapshot(args.LastIncludedIndex, args.LastIncludedTerm, args.data)
+
+	// persistence
+	rf.save()
 }

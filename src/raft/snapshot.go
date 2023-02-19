@@ -20,5 +20,6 @@ func (rf *Raft) Snapshot(logIndex int, snapshot []byte) {
 
 	rf.log("log after snapshot: [%d:%d] %v", rf.getPrevLogIndex(), rf.getPrevLogTerm(), rf.getEntriesStr())
 
+	// persistence
 	rf.save()
 }

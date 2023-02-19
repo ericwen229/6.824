@@ -2,7 +2,7 @@ package raft
 
 import "time"
 
-func (rf *Raft) commitLoop(applyCh chan ApplyMsg) {
+func (rf *Raft) commitLoop() {
 	for rf.killed() == false {
 		rf.mu.Lock()
 		if rf.commitIndex <= rf.lastApplied {
@@ -22,7 +22,7 @@ func (rf *Raft) commitLoop(applyCh chan ApplyMsg) {
 		rf.log("commit %d:{%d:%v}", commandIndex, entry.Term, entry.Command)
 		rf.mu.Unlock()
 
-		applyCh <- ApplyMsg{
+		rf.applyCh <- ApplyMsg{
 			CommandValid: true,
 			Command:      entry.Command,
 			CommandIndex: commandIndex,

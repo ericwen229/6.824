@@ -34,7 +34,7 @@ func Make(peers []*labrpc.ClientEnd, me int,
 
 	go rf.electionTimeoutCheckLoop()
 	go rf.heartbeatLoop()
-	go rf.commitLoop(applyCh)
+	go rf.commitLoop()
 
 	return rf
 }

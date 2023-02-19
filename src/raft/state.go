@@ -33,6 +33,7 @@ type Raft struct {
 	lastApplied     int
 	nextIndex       []int
 	matchIndex      []int
+	applyCh         chan ApplyMsg
 }
 
 // GetState returns current term and whether this server believes it is the leader.
