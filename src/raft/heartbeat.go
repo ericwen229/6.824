@@ -26,8 +26,34 @@ func (rf *Raft) broadcastHeartbeat() {
 		nextIndex := rf.nextIndex[i]
 		entriesToSend, ok := rf.getEntriesToSend(nextIndex)
 		if !ok {
-			panic(errors.New("need to install snapshot"))
 			// TODO: install snapshot
+			args := &InstallSnapshotArgs{
+				Term:              rf.currentTerm,
+				LeaderId:          rf.me,
+				LastIncludedIndex: rf.snapshot.lastIncludedLogIndex,
+				LastIncludedTerm:  rf.snapshot.lastIncludedLogTerm,
+				data:              rf.snapshot.data,
+			}
+			go func(i int, peer *labrpc.ClientEnd, args *InstallSnapshotArgs) {
+				var reply InstallSnapshotReply
+				ok := peer.Call("Raft.InstallSnapshot", args, &reply)
+
+				if !ok {
+					return
+				}
+
+				rf.mu.Lock()
+				defer rf.mu.Unlock()
+
+				// All Server Rule 2:
+				// if RPC request or response contains term T > currentTerm
+				// set currentTerm = T, convert to follower
+				if reply.Term > rf.currentTerm {
+					rf.log("convert to follower T:%d > T:%d (InstallSnapshot reply higher term from S%d)", rf.currentTerm, reply.Term, i)
+					rf.convertToFollower(reply.Term)
+					return
+				}
+			}(i, peer, args)
 		}
 
 		prevLogIndex := nextIndex - 1

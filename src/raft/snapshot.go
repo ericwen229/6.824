@@ -14,7 +14,7 @@ func (rf *Raft) Snapshot(logIndex int, snapshot []byte) {
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
 
-	rf.log("received snapshot #%d", logIndex)
+	rf.log("received snapshot from client #%d", logIndex)
 
 	rf.installSnapshot(logIndex, snapshot)
 

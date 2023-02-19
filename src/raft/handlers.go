@@ -242,7 +242,11 @@ func (rf *Raft) InstallSnapshot(args *InstallSnapshotArgs, reply *InstallSnapsho
 	// (which isn't considered here)
 	// NOOP
 
+	rf.log("received snapshot from leader #%d", args.LeaderId)
+
 	rf.installOrExtendSnapshot(args.LastIncludedIndex, args.LastIncludedTerm, args.data)
+
+	rf.log("log after snapshot: [%d:%d] %v", rf.getPrevLogIndex(), rf.getPrevLogTerm(), rf.getEntriesStr())
 
 	// persistence
 	rf.save()
