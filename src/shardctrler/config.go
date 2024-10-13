@@ -1,17 +1,20 @@
 package shardctrler
 
-import "6.824/labrpc"
-import "6.824/raft"
-import "testing"
-import "os"
+import (
+	crand "crypto/rand"
+	"encoding/base64"
+	"math/rand"
+	"os"
+	"runtime"
+	"sync"
+	"testing"
+	"time"
+
+	"6.824/labrpc"
+	"6.824/raft/util"
+)
 
 // import "log"
-import crand "crypto/rand"
-import "math/rand"
-import "encoding/base64"
-import "sync"
-import "runtime"
-import "time"
 
 func randstring(n int) string {
 	b := make([]byte, 2*n)
@@ -37,7 +40,7 @@ type config struct {
 	net          *labrpc.Network
 	n            int
 	servers      []*ShardCtrler
-	saved        []*raft.Persister
+	saved        []*util.Persister
 	endnames     [][]string // names of each server's sending ClientEnds
 	clerks       map[*Clerk][]string
 	nextClientId int
@@ -281,7 +284,7 @@ func (cfg *config) StartServer(i int) {
 	if cfg.saved[i] != nil {
 		cfg.saved[i] = cfg.saved[i].Copy()
 	} else {
-		cfg.saved[i] = raft.MakePersister()
+		cfg.saved[i] = util.MakePersister()
 	}
 
 	cfg.mu.Unlock()
@@ -338,7 +341,7 @@ func make_config(t *testing.T, n int, unreliable bool) *config {
 	cfg.net = labrpc.MakeNetwork()
 	cfg.n = n
 	cfg.servers = make([]*ShardCtrler, cfg.n)
-	cfg.saved = make([]*raft.Persister, cfg.n)
+	cfg.saved = make([]*util.Persister, cfg.n)
 	cfg.endnames = make([][]string, cfg.n)
 	cfg.clerks = make(map[*Clerk][]string)
 	cfg.nextClientId = cfg.n + 1000 // client ids start 1000 above the highest serverid

@@ -1,6 +1,8 @@
-package raft
+package util
 
-import "fmt"
+import (
+	"fmt"
+)
 
 type Countdown struct {
 	remainingMs int64

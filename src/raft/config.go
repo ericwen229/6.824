@@ -8,20 +8,24 @@ package raft
 // test with the original before submitting.
 //
 
-import "6.824/labgob"
-import "6.824/labrpc"
-import "bytes"
-import "log"
-import "sync"
-import "sync/atomic"
-import "testing"
-import "runtime"
-import "math/rand"
-import crand "crypto/rand"
-import "math/big"
-import "encoding/base64"
-import "time"
-import "fmt"
+import (
+	"bytes"
+	crand "crypto/rand"
+	"encoding/base64"
+	"fmt"
+	"log"
+	"math/big"
+	"math/rand"
+	"runtime"
+	"sync"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"6.824/labgob"
+	"6.824/labrpc"
+	"6.824/raft/util"
+)
 
 func randstring(n int) string {
 	b := make([]byte, 2*n)
@@ -46,7 +50,7 @@ type config struct {
 	rafts       []*Raft
 	applyErr    []string // from apply channel readers
 	connected   []bool   // whether each server is on the net
-	saved       []*Persister
+	saved       []*util.Persister
 	endnames    [][]string            // the port file names each sends to
 	logs        []map[int]interface{} // copy of each server's committed entries
 	lastApplied []int
@@ -77,7 +81,7 @@ func make_config(t *testing.T, n int, unreliable bool, snapshot bool) *config {
 	cfg.applyErr = make([]string, cfg.n)
 	cfg.rafts = make([]*Raft, cfg.n)
 	cfg.connected = make([]bool, cfg.n)
-	cfg.saved = make([]*Persister, cfg.n)
+	cfg.saved = make([]*util.Persister, cfg.n)
 	cfg.endnames = make([][]string, cfg.n)
 	cfg.logs = make([]map[int]interface{}, cfg.n)
 	cfg.lastApplied = make([]int, cfg.n)
@@ -132,7 +136,7 @@ func (cfg *config) crash1(i int) {
 	if cfg.saved[i] != nil {
 		raftlog := cfg.saved[i].ReadRaftState()
 		snapshot := cfg.saved[i].ReadSnapshot()
-		cfg.saved[i] = &Persister{}
+		cfg.saved[i] = &util.Persister{}
 		cfg.saved[i].SaveStateAndSnapshot(raftlog, snapshot)
 	}
 }
@@ -312,7 +316,7 @@ func (cfg *config) start1(i int, applier func(int, chan ApplyMsg)) {
 			}
 		}
 	} else {
-		cfg.saved[i] = MakePersister()
+		cfg.saved[i] = util.MakePersister()
 	}
 
 	cfg.mu.Unlock()

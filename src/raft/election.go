@@ -4,7 +4,7 @@ import (
 	"sync/atomic"
 )
 
-func (rf *Raft) requestVotesFromPeers() {
+func (rf *Raft) startElection() {
 	var peerVoteCount int32 = 0
 	peerNum := len(rf.peers)
 
