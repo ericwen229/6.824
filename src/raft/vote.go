@@ -1,59 +1,44 @@
 package raft
 
 import (
-	"sync"
 	"sync/atomic"
 )
 
 func (rf *Raft) requestVotesFromPeers() {
-	go func(term, candidateId int) {
-		var peerVoteCount int32 = 0
-		var wg sync.WaitGroup
+	var peerVoteCount int32 = 0
+	peerNum := len(rf.peers)
 
-		req := &RequestVoteArgs{
-			Term:        term,
-			CandidateId: candidateId,
+	req := &RequestVoteArgs{
+		Term:        rf.currentTerm,
+		CandidateId: rf.me,
+	}
+	for id := range rf.peers {
+		if id == rf.me {
+			continue
 		}
-		for id := range rf.peers {
-			if id == candidateId {
-				continue
+
+		go func(peerId int) {
+			resp := &RequestVoteReply{}
+			if !rf.sendRequestVote(peerId, req, resp) {
+				return
 			}
 
-			wg.Add(1)
+			// request vote post process
+			rf.mu.Lock()
+			defer rf.mu.Unlock()
 
-			go func(term, peerId int) {
-				defer wg.Done()
-
-				resp := &RequestVoteReply{}
-				if !rf.sendRequestVote(peerId, req, resp) {
-					return
+			if resp.Term > rf.currentTerm {
+				rf.foundHigherTerm(resp.Term)
+			} else if resp.VoteGranted {
+				voteCount := int(atomic.AddInt32(&peerVoteCount, 1)) + 1
+				if 2*voteCount > peerNum && rf.isCandidate() {
+					// may have lost election and become follower
+					// or have become leader thanks to previous votes
+					rf.becomeLeader()
 				}
-
-				// request vote post process
-				rf.mu.Lock()
-				defer rf.mu.Unlock()
-
-				if resp.Term > rf.currentTerm {
-					rf.foundHigherTerm(resp.Term)
-				} else if resp.VoteGranted {
-					atomic.AddInt32(&peerVoteCount, 1)
-				}
-			}(term, id)
-		}
-
-		wg.Wait()
-
-		finalVote := int(atomic.LoadInt32(&peerVoteCount)) + 1
-
-		rf.mu.Lock()
-		defer rf.mu.Unlock()
-
-		if finalVote*2 > len(rf.peers) &&
-			term == rf.currentTerm &&
-			rf.isCandidate() { // may have lost election and become follower
-			rf.becomeLeader()
-		}
-	}(rf.currentTerm, rf.me)
+			}
+		}(id)
+	}
 }
 
 type RequestVoteArgs struct {
