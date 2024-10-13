@@ -159,8 +159,8 @@ func (rf *Raft) killed() bool {
 }
 
 const (
-	ElectionTimeoutMaxMs int64 = 1000
-	ElectionTimeoutMinMs int64 = 500
+	ElectionTimeoutMaxMs int64 = 500
+	ElectionTimeoutMinMs int64 = 300
 	HeartbeatTimeoutMs   int64 = 100
 )
 
