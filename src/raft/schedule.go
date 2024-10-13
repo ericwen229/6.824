@@ -8,10 +8,9 @@ import (
 const TickIntervalMs int64 = 5
 
 func (rf *Raft) ticker() {
-	var tickIntervalMs int64 = TickIntervalMs
 	for rf.killed() == false {
-		time.Sleep(time.Duration(tickIntervalMs) * time.Millisecond)
-		rf.tick(tickIntervalMs)
+		time.Sleep(time.Duration(TickIntervalMs) * time.Millisecond)
+		rf.tick(TickIntervalMs)
 	}
 }
 

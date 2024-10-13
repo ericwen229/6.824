@@ -27,12 +27,12 @@ import (
 	"6.824/raft/util"
 )
 
-type Role int
+type Role string
 
 const (
-	Follower Role = iota
-	Candidate
-	Leader
+	Follower  Role = "follower"
+	Candidate Role = "candidate"
+	Leader    Role = "leader"
 )
 
 func (rf *Raft) isFollower() bool {
@@ -72,6 +72,8 @@ type Raft struct {
 }
 
 func (rf *Raft) initFollower() {
+	rf.logState("-> follower 0")
+
 	rf.currentTerm = 0
 	rf.votedFor = -1
 	rf.role = Follower
@@ -86,6 +88,8 @@ func (rf *Raft) follower2Candidate() {
 	// - reset election timer
 	// - send RequestVote RPCs to all other servers
 
+	rf.logState("follower %d -> candidate %d", rf.currentTerm, rf.currentTerm+1)
+
 	rf.currentTerm += 1
 	rf.votedFor = rf.me
 	rf.role = Candidate
@@ -98,12 +102,17 @@ func (rf *Raft) follower2Candidate() {
 func (rf *Raft) candidate2Follower() {
 	// rf.currentTerm not changed
 	// rf.votedFor not changed
+
+	rf.logState("candidate %d -> follower %d", rf.currentTerm, rf.currentTerm)
+
 	rf.role = Follower
 	rf.electionTimeout = util.NewCountdown(randElectionTimeout())
 	rf.heartbeatTimeout = nil
 }
 
 func (rf *Raft) candidateRetryElection() {
+	rf.logState("candidate %d -> candidate %d", rf.currentTerm, rf.currentTerm+1)
+
 	rf.currentTerm += 1
 	// rf.votedFor not changed (still self)
 	// rf.role not changed (still candidate)
@@ -114,6 +123,8 @@ func (rf *Raft) candidateRetryElection() {
 }
 
 func (rf *Raft) foundHigherTerm(term int) {
+	rf.logState("%s %d -> follower %d", rf.role, rf.currentTerm, term)
+
 	rf.currentTerm = term
 	rf.votedFor = -1
 	rf.role = Follower
@@ -121,7 +132,9 @@ func (rf *Raft) foundHigherTerm(term int) {
 	rf.heartbeatTimeout = nil
 }
 
-func (rf *Raft) becomeLeader() {
+func (rf *Raft) candidate2Leader() {
+	rf.logState("candidate %d -> leader %d", rf.currentTerm, rf.currentTerm)
+
 	// rf.currentTerm not changed
 	// rf.votedFor not changed
 	rf.role = Leader

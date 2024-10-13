@@ -41,7 +41,7 @@ func (rf *Raft) startElection() {
 				// if votes received from majority of servers: become leader
 				if 2*voteCount > peerNum && rf.isCandidate() {
 					// may have already become leader or lost election and become follower
-					rf.becomeLeader()
+					rf.candidate2Leader()
 				}
 			}
 		}(id)
@@ -111,6 +111,7 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	// if votedFor is null or candidateId,
 	// and candidate's log is at least as up-to-date as receiver's log, grant vote
 	if rf.votedFor == -1 || rf.votedFor == args.CandidateId {
+		rf.votedFor = args.CandidateId
 		reply.VoteGranted = true
 	}
 }
