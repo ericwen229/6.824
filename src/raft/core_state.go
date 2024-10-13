@@ -66,34 +66,50 @@ type Raft struct {
 	votedFor    int
 
 	// Volatile states
-	role            Role
-	electionTimeout *util.Countdown
+	role             Role
+	electionTimeout  *util.Countdown
+	heartbeatTimeout *util.Countdown
 }
 
 func (rf *Raft) initFollower() {
 	rf.currentTerm = 0
 	rf.votedFor = -1
 	rf.role = Follower
-	rf.electionTimeout = util.NewCountdown(newRandElectionTimeout())
+	rf.electionTimeout = util.NewCountdown(randElectionTimeout())
+	rf.heartbeatTimeout = nil
 }
 
 func (rf *Raft) follower2Candidate() {
+	// on conversion to candidate, start election:
+	// - increment currentTerm
+	// - vote for self
+	// - reset election timer
+	// - send RequestVote RPCs to all other servers
+
 	rf.currentTerm += 1
 	rf.votedFor = rf.me
 	rf.role = Candidate
-	rf.electionTimeout = util.NewCountdown(newRandElectionTimeout())
+	rf.electionTimeout = util.NewCountdown(randElectionTimeout())
+	rf.heartbeatTimeout = nil
 
-	// on conversion to candidate, start election
 	rf.startElection()
+}
+
+func (rf *Raft) candidate2Follower() {
+	// rf.currentTerm not changed
+	// rf.votedFor not changed
+	rf.role = Follower
+	rf.electionTimeout = util.NewCountdown(randElectionTimeout())
+	rf.heartbeatTimeout = nil
 }
 
 func (rf *Raft) candidateRetryElection() {
 	rf.currentTerm += 1
 	// rf.votedFor not changed (still self)
 	// rf.role not changed (still candidate)
-	rf.electionTimeout = util.NewCountdown(newRandElectionTimeout())
+	rf.electionTimeout = util.NewCountdown(randElectionTimeout())
+	rf.heartbeatTimeout = nil
 
-	// if election timeout elapses: start new election
 	rf.startElection()
 }
 
@@ -101,17 +117,27 @@ func (rf *Raft) foundHigherTerm(term int) {
 	rf.currentTerm = term
 	rf.votedFor = -1
 	rf.role = Follower
-	rf.electionTimeout = util.NewCountdown(newRandElectionTimeout())
+	rf.electionTimeout = util.NewCountdown(randElectionTimeout())
+	rf.heartbeatTimeout = nil
 }
 
 func (rf *Raft) becomeLeader() {
 	// rf.currentTerm not changed
-	rf.votedFor = -1
+	// rf.votedFor not changed
 	rf.role = Leader
 	rf.electionTimeout = nil
+	rf.heartbeatTimeout = util.NewCountdown(heartbeatTimeout())
 
 	// upon election: send initial empty AppendEntries RPCs (heartbeat) to each server
 	rf.broadcastHeartbeat()
+}
+
+func (rf *Raft) resetElectionTimeout() {
+	rf.electionTimeout.Reset()
+}
+
+func (rf *Raft) resetHeartbeatTimeout() {
+	rf.heartbeatTimeout.Reset()
 }
 
 func (rf *Raft) killed() bool {
@@ -122,10 +148,15 @@ func (rf *Raft) killed() bool {
 const (
 	ElectionTimeoutMaxMs int64 = 1000
 	ElectionTimeoutMinMs int64 = 500
+	HeartbeatTimeoutMs   int64 = 100
 )
 
-func newRandElectionTimeout() int64 {
+func randElectionTimeout() int64 {
 	var max = ElectionTimeoutMaxMs
 	var min = ElectionTimeoutMinMs
 	return rand.Int63n(max-min) + min
+}
+
+func heartbeatTimeout() int64 {
+	return HeartbeatTimeoutMs
 }

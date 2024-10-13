@@ -31,7 +31,10 @@ func (rf *Raft) tick(elapsedMs int64) {
 			rf.candidateRetryElection()
 		}
 	} else if rf.isLeader() {
-		// TODO
+		// repeat during idle periods to prevent election timeouts
+		if rf.heartbeatTimeout.Tick(elapsedMs) {
+			rf.broadcastHeartbeat()
+		}
 	} else {
 		panic(fmt.Errorf("illegal raft role: %v", rf.role))
 	}

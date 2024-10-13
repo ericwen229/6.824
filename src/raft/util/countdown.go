@@ -5,11 +5,13 @@ import (
 )
 
 type Countdown struct {
+	totalMs     int64
 	remainingMs int64
 }
 
 func NewCountdown(totalMs int64) *Countdown {
 	return &Countdown{
+		totalMs:     totalMs,
 		remainingMs: totalMs,
 	}
 }
@@ -24,4 +26,8 @@ func (c *Countdown) Tick(elapsedMs int64) bool {
 	}
 	c.remainingMs -= elapsedMs
 	return c.remainingMs <= 0
+}
+
+func (c *Countdown) Reset() {
+	c.remainingMs = c.totalMs
 }

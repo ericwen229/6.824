@@ -23,36 +23,29 @@ func (rf *Raft) startElection() {
 				return
 			}
 
-			// request vote post process
+			// process
 			rf.mu.Lock()
 			defer rf.mu.Unlock()
 
+			// if RPC request or response contains term T > currentTerm: set currentTerm = T, convert to follower
 			if resp.Term > rf.currentTerm {
 				rf.foundHigherTerm(resp.Term)
-			} else if resp.VoteGranted {
+				return
+			} else if resp.Term < rf.currentTerm {
+				// out of date
+				return
+			}
+
+			if resp.VoteGranted {
 				voteCount := int(atomic.AddInt32(&peerVoteCount, 1)) + 1
+				// if votes received from majority of servers: become leader
 				if 2*voteCount > peerNum && rf.isCandidate() {
-					// may have lost election and become follower
-					// or have become leader thanks to previous votes
+					// may have already become leader or lost election and become follower
 					rf.becomeLeader()
 				}
 			}
 		}(id)
 	}
-}
-
-type RequestVoteArgs struct {
-	Term        int
-	CandidateId int
-}
-
-type RequestVoteReply struct {
-	Term        int
-	VoteGranted bool
-}
-
-func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
-	// Your code here (2A, 2B).
 }
 
 //
@@ -86,4 +79,38 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 //
 func (rf *Raft) sendRequestVote(server int, args *RequestVoteArgs, reply *RequestVoteReply) bool {
 	return rf.peers[server].Call("Raft.RequestVote", args, reply)
+}
+
+type RequestVoteArgs struct {
+	Term        int
+	CandidateId int
+}
+
+type RequestVoteReply struct {
+	Term        int
+	VoteGranted bool
+}
+
+func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
+
+	// default value
+	reply.Term = rf.currentTerm
+	reply.VoteGranted = false
+
+	// if RPC request or response contains term T > currentTerm: set currentTerm = T, convert to follower
+	if args.Term > rf.currentTerm {
+		rf.foundHigherTerm(args.Term)
+		reply.Term = rf.currentTerm
+	} else if args.Term < rf.currentTerm {
+		reply.VoteGranted = false
+		return
+	}
+
+	// if votedFor is null or candidateId,
+	// and candidate's log is at least as up-to-date as receiver's log, grant vote
+	if rf.votedFor == -1 || rf.votedFor == args.CandidateId {
+		reply.VoteGranted = true
+	}
 }
