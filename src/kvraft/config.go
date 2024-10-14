@@ -1,20 +1,23 @@
 package kvraft
 
-import "6.824/labrpc"
-import "testing"
-import "os"
+import (
+	crand "crypto/rand"
+	"encoding/base64"
+	"fmt"
+	"math/big"
+	"math/rand"
+	"os"
+	"runtime"
+	"sync"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"6.824/labrpc"
+	"6.824/raft/util"
+)
 
 // import "log"
-import crand "crypto/rand"
-import "math/big"
-import "math/rand"
-import "encoding/base64"
-import "sync"
-import "runtime"
-import "6.824/raft"
-import "fmt"
-import "time"
-import "sync/atomic"
 
 func randstring(n int) string {
 	b := make([]byte, 2*n)
@@ -47,7 +50,7 @@ type config struct {
 	net          *labrpc.Network
 	n            int
 	kvservers    []*KVServer
-	saved        []*raft.Persister
+	saved        []*util.Persister
 	endnames     [][]string // names of each server's sending ClientEnds
 	clerks       map[*Clerk][]string
 	nextClientId int
@@ -308,7 +311,7 @@ func (cfg *config) StartServer(i int) {
 	if cfg.saved[i] != nil {
 		cfg.saved[i] = cfg.saved[i].Copy()
 	} else {
-		cfg.saved[i] = raft.MakePersister()
+		cfg.saved[i] = util.MakePersister()
 	}
 	cfg.mu.Unlock()
 
@@ -370,7 +373,7 @@ func make_config(t *testing.T, n int, unreliable bool, maxraftstate int) *config
 	cfg.net = labrpc.MakeNetwork()
 	cfg.n = n
 	cfg.kvservers = make([]*KVServer, cfg.n)
-	cfg.saved = make([]*raft.Persister, cfg.n)
+	cfg.saved = make([]*util.Persister, cfg.n)
 	cfg.endnames = make([][]string, cfg.n)
 	cfg.clerks = make(map[*Clerk][]string)
 	cfg.nextClientId = cfg.n + 1000 // client ids start 1000 above the highest serverid
