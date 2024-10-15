@@ -5,6 +5,10 @@ import (
 )
 
 func (rf *Raft) broadcastHeartbeat() {
+	rf.initiateAgreement()
+}
+
+func (rf *Raft) initiateAgreement() {
 	rf.resetHeartbeatTimeout()
 
 	req := &AppendEntriesArgs{

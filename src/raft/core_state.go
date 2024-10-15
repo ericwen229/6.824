@@ -27,24 +27,24 @@ import (
 	"6.824/raft/util"
 )
 
-type Role string
+type role string
 
 const (
-	Follower  Role = "follower"
-	Candidate Role = "candidate"
-	Leader    Role = "leader"
+	follower  role = "follower"
+	candidate role = "candidate"
+	leader    role = "leader"
 )
 
 func (rf *Raft) isFollower() bool {
-	return rf.role == Follower
+	return rf.role == follower
 }
 
 func (rf *Raft) isCandidate() bool {
-	return rf.role == Candidate
+	return rf.role == candidate
 }
 
 func (rf *Raft) isLeader() bool {
-	return rf.role == Leader
+	return rf.role == leader
 }
 
 //
@@ -64,9 +64,10 @@ type Raft struct {
 	// Persistent states
 	currentTerm int
 	votedFor    int
+	logs        *logEntries
 
 	// Volatile states
-	role             Role
+	role             role
 	electionTimeout  *util.Countdown
 	heartbeatTimeout *util.Countdown
 }
@@ -76,7 +77,8 @@ func (rf *Raft) initFollower() {
 
 	rf.currentTerm = 0
 	rf.votedFor = -1
-	rf.role = Follower
+	rf.logs = initEntries()
+	rf.role = follower
 	rf.electionTimeout = util.NewCountdown(randElectionTimeout())
 	rf.heartbeatTimeout = nil
 }
@@ -92,7 +94,8 @@ func (rf *Raft) follower2Candidate() {
 
 	rf.currentTerm += 1
 	rf.votedFor = rf.me
-	rf.role = Candidate
+	// rf.logs not changed
+	rf.role = candidate
 	rf.electionTimeout = util.NewCountdown(randElectionTimeout())
 	rf.heartbeatTimeout = nil
 
@@ -100,12 +103,12 @@ func (rf *Raft) follower2Candidate() {
 }
 
 func (rf *Raft) candidate2Follower() {
-	// rf.currentTerm not changed
-	// rf.votedFor not changed
-
 	rf.logState("candidate %d -> follower %d", rf.currentTerm, rf.currentTerm)
 
-	rf.role = Follower
+	// rf.currentTerm not changed
+	// rf.votedFor not changed
+	// rf.logs not changed
+	rf.role = follower
 	rf.electionTimeout = util.NewCountdown(randElectionTimeout())
 	rf.heartbeatTimeout = nil
 }
@@ -115,6 +118,7 @@ func (rf *Raft) candidateRetryElection() {
 
 	rf.currentTerm += 1
 	// rf.votedFor not changed (still self)
+	// rf.logs not changed
 	// rf.role not changed (still candidate)
 	rf.electionTimeout = util.NewCountdown(randElectionTimeout())
 	rf.heartbeatTimeout = nil
@@ -127,7 +131,8 @@ func (rf *Raft) foundHigherTerm(term int) {
 
 	rf.currentTerm = term
 	rf.votedFor = -1
-	rf.role = Follower
+	// rf.logs not changed
+	rf.role = follower
 	rf.electionTimeout = util.NewCountdown(randElectionTimeout())
 	rf.heartbeatTimeout = nil
 }
@@ -137,12 +142,17 @@ func (rf *Raft) candidate2Leader() {
 
 	// rf.currentTerm not changed
 	// rf.votedFor not changed
-	rf.role = Leader
+	// rf.logs not changed
+	rf.role = leader
 	rf.electionTimeout = nil
 	rf.heartbeatTimeout = util.NewCountdown(heartbeatTimeout())
 
 	// upon election: send initial empty AppendEntries RPCs (heartbeat) to each server
 	rf.broadcastHeartbeat()
+}
+
+func (rf *Raft) appendEntryLocal(command interface{}) (int, int) {
+	return rf.logs.append(rf.currentTerm, command), rf.currentTerm
 }
 
 func (rf *Raft) resetElectionTimeout() {
@@ -159,17 +169,17 @@ func (rf *Raft) killed() bool {
 }
 
 const (
-	ElectionTimeoutMaxMs int64 = 500
-	ElectionTimeoutMinMs int64 = 300
-	HeartbeatTimeoutMs   int64 = 100
+	electionTimeoutMaxMs int64 = 500
+	electionTimeoutMinMs int64 = 300
+	heartbeatTimeoutMs   int64 = 100
 )
 
 func randElectionTimeout() int64 {
-	var max = ElectionTimeoutMaxMs
-	var min = ElectionTimeoutMinMs
+	var max = electionTimeoutMaxMs
+	var min = electionTimeoutMinMs
 	return rand.Int63n(max-min) + min
 }
 
 func heartbeatTimeout() int64 {
-	return HeartbeatTimeoutMs
+	return heartbeatTimeoutMs
 }

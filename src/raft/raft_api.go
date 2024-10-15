@@ -48,7 +48,6 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.persister = persister
 	rf.me = me
 
-	// Your initialization code here (2A, 2B, 2C).
 	rf.initFollower()
 
 	// initialize from state persisted before a crash
@@ -75,13 +74,17 @@ func Make(peers []*labrpc.ClientEnd, me int,
 // the leader.
 //
 func (rf *Raft) Start(command interface{}) (int, int, bool) {
-	index := -1
-	term := -1
-	isLeader := true
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
 
-	// Your code here (2B).
+	if rf.killed() || !rf.isLeader() {
+		return -1, -1, false
+	}
 
-	return index, term, isLeader
+	index, term := rf.appendEntryLocal(command)
+	rf.initiateAgreement()
+
+	return index, term, true
 }
 
 // return currentTerm and whether this server
