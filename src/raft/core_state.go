@@ -105,7 +105,7 @@ func (rf *Raft) follower2Candidate() {
 	// rf.logs not changed
 	rf.role = candidate
 	rf.electionTimeout = util.NewCountdown(randElectionTimeout())
-	rf.heartbeatTimeout = nil
+	// rf.heartbeatTimeout not changed
 	// rf.commitIndex not changed
 	// rf.lastApplied not changed
 	// rf.nextIndex not changed
@@ -121,8 +121,8 @@ func (rf *Raft) candidate2Follower() {
 	// rf.votedFor not changed
 	// rf.logs not changed
 	rf.role = follower
-	rf.electionTimeout = util.NewCountdown(randElectionTimeout())
-	rf.heartbeatTimeout = nil
+	// rf.electionTimeout not changed
+	// rf.heartbeatTimeout not changed
 	// rf.commitIndex not changed
 	// rf.lastApplied not changed
 	// rf.nextIndex not changed
@@ -138,7 +138,7 @@ func (rf *Raft) candidateRetryElection() {
 	// rf.logs not changed
 	// rf.role not changed (still candidate)
 	rf.electionTimeout = util.NewCountdown(randElectionTimeout())
-	rf.heartbeatTimeout = nil
+	// rf.heartbeatTimeout not changed
 	// rf.commitIndex not changed
 	// rf.lastApplied not changed
 	// rf.nextIndex not changed
@@ -154,7 +154,9 @@ func (rf *Raft) foundHigherTerm(term int) {
 	rf.votedFor = -1
 	// rf.logs not changed
 	rf.role = follower
-	rf.electionTimeout = util.NewCountdown(randElectionTimeout())
+	if rf.electionTimeout == nil { // was leader
+		rf.electionTimeout = util.NewCountdown(randElectionTimeout())
+	}
 	rf.heartbeatTimeout = nil
 	// rf.commitIndex not changed
 	// rf.lastApplied not changed

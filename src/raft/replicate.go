@@ -43,11 +43,16 @@ func (rf *Raft) sendAppendEntries(server int, args *AppendEntriesArgs, reply *Ap
 }
 
 type AppendEntriesArgs struct {
-	Term int
+	Term         int
+	PrevLogIndex int
+	PrevLogTerm  int
+	Entries      []*logEntry
+	LeaderCommit int
 }
 
 type AppendEntriesReply struct {
-	Term int
+	Term    int
+	Success bool
 }
 
 func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply) {
@@ -56,19 +61,23 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 
 	// default value
 	reply.Term = rf.currentTerm
+	reply.Success = false
 
 	// if RPC request or response contains term T > currentTerm: set currentTerm = T, convert to follower
 	if args.Term > rf.currentTerm {
 		rf.foundHigherTerm(args.Term)
 		reply.Term = rf.currentTerm
 	} else if args.Term < rf.currentTerm {
-		// note: need to reply false in the future
+		// reply false if term < currentTerm
+		reply.Success = false
 		return
 	}
 
+	// valid AppendEntries from leader
+	rf.resetElectionTimeout()
+
 	if rf.isFollower() {
 		// if election timeout elapses without receiving AppendEntries RPC from current leader...
-		rf.resetElectionTimeout()
 	} else if rf.isCandidate() {
 		// if AppendEntries RPC received from new leader: convert to follower
 		rf.candidate2Follower()
@@ -77,4 +86,26 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 	} else {
 		panic(fmt.Errorf("illegal raft role: %v", rf.role))
 	}
+
+	// self is guaranteed to be follower from here
+
+	if !rf.logs.contains(args.PrevLogIndex, args.PrevLogTerm) {
+		// reply false if log doesn't contain an entry at prevLogIndex whose term matches prevLogTerm
+		reply.Success = false
+		return
+	}
+
+	reply.Success = true
+
+	if len(args.Entries) == 0 {
+		return
+	}
+
+	// If an existing entry conflicts with a new one (same index but different terms),
+	// delete the existing entry and all that follow it
+	//
+	// Append any new entries not already in the log
+	// TODO
+
+	// If leaderCommit > commitIndex, set commitIndex = min(leaderCommit, index of last new entry)
 }
