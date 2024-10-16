@@ -18,3 +18,7 @@ func (l *logEntries) append(term int, command interface{}) int {
 	l.log = append(l.log, entry)
 	return len(l.log)
 }
+
+func (l *logEntries) lastLogIndex() int {
+	return len(l.log)
+}
