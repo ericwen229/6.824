@@ -2,6 +2,8 @@ package raft
 
 import (
 	"fmt"
+
+	"6.824/raft/util"
 )
 
 func (rf *Raft) broadcastHeartbeat() {
@@ -46,7 +48,7 @@ type AppendEntriesArgs struct {
 	Term         int
 	PrevLogIndex int
 	PrevLogTerm  int
-	Entries      []*logEntry
+	Entries      []*util.LogEntry
 	LeaderCommit int
 }
 
@@ -89,7 +91,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 
 	// self is guaranteed to be follower from here
 
-	if !rf.logs.contains(args.PrevLogIndex, args.PrevLogTerm) {
+	if !rf.logs.Match(args.PrevLogIndex, args.PrevLogTerm) {
 		// reply false if log doesn't contain an entry at prevLogIndex whose term matches prevLogTerm
 		reply.Success = false
 		return
@@ -97,15 +99,16 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 
 	reply.Success = true
 
-	if len(args.Entries) == 0 {
-		return
+	if len(args.Entries) > 0 {
+		// If an existing entry conflicts with a new one (same index but different terms),
+		// delete the existing entry and all that follow it
+		//
+		// Append any new entries not already in the log
+		rf.logs.Amend(args.PrevLogIndex+1, args.Entries)
 	}
 
-	// If an existing entry conflicts with a new one (same index but different terms),
-	// delete the existing entry and all that follow it
-	//
-	// Append any new entries not already in the log
-	// TODO
-
 	// If leaderCommit > commitIndex, set commitIndex = min(leaderCommit, index of last new entry)
+	if args.LeaderCommit > rf.commitIndex {
+		rf.commitIndex = util.Min(args.LeaderCommit, args.PrevLogIndex+len(args.Entries))
+	}
 }

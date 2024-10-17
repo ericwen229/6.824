@@ -64,7 +64,7 @@ type Raft struct {
 	// Persistent states
 	currentTerm int
 	votedFor    int
-	logs        *logEntries
+	logs        *util.LogEntries
 
 	// Volatile states
 	role             role
@@ -81,7 +81,7 @@ func (rf *Raft) initFollower() {
 
 	rf.currentTerm = 0
 	rf.votedFor = -1
-	rf.logs = initEntries()
+	rf.logs = util.NewEntries()
 	rf.role = follower
 	rf.electionTimeout = util.NewCountdown(randElectionTimeout())
 	rf.heartbeatTimeout = nil
@@ -178,7 +178,7 @@ func (rf *Raft) candidate2Leader() {
 	rf.nextIndex = make([]int, len(rf.peers))
 	for i := 0; i < len(rf.peers); i++ {
 		if i != rf.me {
-			rf.nextIndex[i] = rf.logs.lastLogIndex() + 1
+			rf.nextIndex[i] = rf.logs.LastLogIndex() + 1
 		}
 	}
 	rf.matchIndex = make([]int, len(rf.peers))
@@ -188,7 +188,7 @@ func (rf *Raft) candidate2Leader() {
 }
 
 func (rf *Raft) appendEntryLocal(command interface{}) (int, int) {
-	return rf.logs.append(rf.currentTerm, command), rf.currentTerm
+	return rf.logs.Append(&util.LogEntry{Term: rf.currentTerm, Command: command}), rf.currentTerm
 }
 
 func (rf *Raft) resetElectionTimeout() {
