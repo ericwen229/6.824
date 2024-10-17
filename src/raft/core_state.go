@@ -178,7 +178,7 @@ func (rf *Raft) candidate2Leader() {
 	rf.nextIndex = make([]int, len(rf.peers))
 	for i := 0; i < len(rf.peers); i++ {
 		if i != rf.me {
-			rf.nextIndex[i] = rf.logs.LastLogIndex() + 1
+			rf.nextIndex[i] = rf.logs.LastIndex() + 1
 		}
 	}
 	rf.matchIndex = make([]int, len(rf.peers))

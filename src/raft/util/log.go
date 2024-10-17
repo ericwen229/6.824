@@ -1,5 +1,8 @@
 package util
 
+const zeroIndex = 0
+const nanTerm = -1
+
 type LogEntries struct {
 	log []*LogEntry // index start from 1
 }
@@ -22,7 +25,7 @@ func (l *LogEntries) Append(entry *LogEntry) int {
 	return len(l.log)
 }
 
-func (l *LogEntries) LastLogIndex() int {
+func (l *LogEntries) LastIndex() int {
 	return len(l.log)
 }
 
@@ -61,9 +64,25 @@ func (l *LogEntries) Amend(index int, entries []*LogEntry) {
 }
 
 func (l *LogEntries) isLegalIndex(index int) bool {
-	return index >= 1 && index <= l.LastLogIndex()
+	return index > zeroIndex && index <= l.LastIndex()
 }
 
 func (l *LogEntries) isZeroIndex(index int) bool {
-	return index == 0
+	return index == zeroIndex
+}
+
+func (l *LogEntries) PrevTerm(index int) int {
+	if l.isZeroIndex(index - 1) {
+		return nanTerm
+	} else {
+		return l.get(index - 1).Term
+	}
+}
+
+func (l *LogEntries) StartingFrom(index int) []*LogEntry {
+	if index > l.LastIndex() {
+		return nil
+	} else {
+		return l.log[index-1:]
+	}
 }

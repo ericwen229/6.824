@@ -13,12 +13,18 @@ func (rf *Raft) broadcastHeartbeat() {
 func (rf *Raft) initiateAgreement() {
 	rf.resetHeartbeatTimeout()
 
-	req := &AppendEntriesArgs{
-		Term: rf.currentTerm,
-	}
 	for id := range rf.peers {
 		if id == rf.me {
 			continue
+		}
+
+		nextIndex := rf.nextIndex[id]
+		req := &AppendEntriesArgs{
+			Term:         rf.currentTerm,
+			PrevLogIndex: nextIndex - 1,
+			PrevLogTerm:  rf.logs.PrevTerm(nextIndex),
+			Entries:      rf.logs.StartingFrom(nextIndex),
+			LeaderCommit: rf.commitIndex,
 		}
 
 		go func(peerId int) {
