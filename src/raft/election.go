@@ -7,8 +7,10 @@ import (
 func (rf *Raft) startElection() {
 	var peerVoteCount int32 = 0
 	req := &RequestVoteArgs{
-		Term:        rf.currentTerm,
-		CandidateId: rf.me,
+		Term:         rf.currentTerm,
+		CandidateId:  rf.me,
+		LastLogIndex: rf.logs.LastIndex(),
+		LastLogTerm:  rf.logs.LastTerm(),
 	}
 	for id := range rf.peers {
 		if id == rf.me {
@@ -81,8 +83,10 @@ func (rf *Raft) sendRequestVote(server int, args *RequestVoteArgs, reply *Reques
 }
 
 type RequestVoteArgs struct {
-	Term        int
-	CandidateId int
+	Term         int
+	CandidateId  int
+	LastLogIndex int
+	LastLogTerm  int
 }
 
 type RequestVoteReply struct {
@@ -109,8 +113,7 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 
 	// if votedFor is null or candidateId,
 	// and candidate's log is at least as up-to-date as receiver's log, grant vote
-	// TODO
-	if rf.votedFor == -1 || rf.votedFor == args.CandidateId {
+	if (rf.votedFor == -1 || rf.votedFor == args.CandidateId) && rf.logs.IsUpToDate(args.LastLogIndex, args.LastLogTerm) {
 		rf.votedFor = args.CandidateId
 		reply.VoteGranted = true
 		rf.resetElectionTimeout()

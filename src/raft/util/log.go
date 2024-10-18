@@ -29,6 +29,14 @@ func (l *LogEntries) LastIndex() int {
 	return len(l.log)
 }
 
+func (l *LogEntries) LastTerm() int {
+	if len(l.log) == 0 {
+		return nanTerm
+	} else {
+		return l.get(l.LastIndex()).Term
+	}
+}
+
 func (l *LogEntries) Match(index int, term int) bool {
 	return l.isZeroIndex(index) || (l.isLegalIndex(index) && l.get(index).Term == term)
 }
@@ -84,5 +92,15 @@ func (l *LogEntries) GetEntriesStartingFrom(index int) []*LogEntry {
 		return nil
 	} else {
 		return l.log[index-1:]
+	}
+}
+
+func (l *LogEntries) IsUpToDate(lastIndex int, lastTerm int) bool {
+	if lastTerm > l.LastTerm() {
+		return true
+	} else if lastTerm < l.LastTerm() {
+		return false
+	} else {
+		return lastIndex >= l.LastIndex()
 	}
 }
