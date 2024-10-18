@@ -79,7 +79,7 @@ func (l *LogEntries) PrevTerm(index int) int {
 	}
 }
 
-func (l *LogEntries) StartingFrom(index int) []*LogEntry {
+func (l *LogEntries) GetEntriesStartingFrom(index int) []*LogEntry {
 	if index > l.LastIndex() {
 		return nil
 	} else {

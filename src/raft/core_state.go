@@ -154,7 +154,7 @@ func (rf *Raft) foundHigherTerm(term int) {
 	rf.votedFor = -1
 	// rf.logs not changed
 	rf.role = follower
-	if rf.electionTimeout == nil { // was leader
+	if rf.electionTimeout == nil { // use to be leader
 		rf.electionTimeout = util.NewCountdown(randElectionTimeout())
 	}
 	rf.heartbeatTimeout = nil

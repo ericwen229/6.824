@@ -6,8 +6,6 @@ import (
 
 func (rf *Raft) startElection() {
 	var peerVoteCount int32 = 0
-	peerNum := len(rf.peers)
-
 	req := &RequestVoteArgs{
 		Term:        rf.currentTerm,
 		CandidateId: rf.me,
@@ -31,16 +29,17 @@ func (rf *Raft) startElection() {
 			if resp.Term > rf.currentTerm {
 				rf.foundHigherTerm(resp.Term)
 				return
-			} else if resp.Term < rf.currentTerm {
-				// out of date
+			}
+
+			// out of date
+			if rf.currentTerm > req.Term || !rf.isCandidate() {
 				return
 			}
 
 			if resp.VoteGranted {
 				voteCount := int(atomic.AddInt32(&peerVoteCount, 1)) + 1
 				// if votes received from majority of servers: become leader
-				if 2*voteCount > peerNum && rf.isCandidate() {
-					// may have already become leader or lost election and become follower
+				if 2*voteCount > len(rf.peers) {
 					rf.candidate2Leader()
 				}
 			}

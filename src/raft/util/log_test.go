@@ -82,7 +82,7 @@ func TestStartingFrom(t *testing.T) {
 		{4, 4},
 		{5, 5},
 	}}
-	entries := logs.StartingFrom(3)
+	entries := logs.GetEntriesStartingFrom(3)
 	assert.Equal(t, 3, len(entries))
 	assert.Equal(t, 3, entries[0].Term)
 	assert.Equal(t, 4, entries[1].Term)

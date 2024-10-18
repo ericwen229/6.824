@@ -19,11 +19,12 @@ func (rf *Raft) initiateAgreement() {
 		}
 
 		nextIndex := rf.nextIndex[id]
+		matchIndex := rf.matchIndex[id]
 		req := &AppendEntriesArgs{
 			Term:         rf.currentTerm,
 			PrevLogIndex: nextIndex - 1,
 			PrevLogTerm:  rf.logs.PrevTerm(nextIndex),
-			Entries:      rf.logs.StartingFrom(nextIndex),
+			Entries:      rf.logs.GetEntriesStartingFrom(nextIndex),
 			LeaderCommit: rf.commitIndex,
 		}
 
@@ -42,8 +43,55 @@ func (rf *Raft) initiateAgreement() {
 				rf.foundHigherTerm(resp.Term)
 				return
 			}
+
+			// out of date
+			if rf.currentTerm > req.Term ||
+				!rf.isLeader() ||
+				rf.nextIndex[peerId] != nextIndex ||
+				rf.matchIndex[peerId] != matchIndex {
+				return
+			}
+
+			if resp.Success {
+				// if successful: update nextIndex and matchIndex for follower
+				rf.nextIndex[peerId] += len(req.Entries)
+				rf.matchIndex[peerId] = rf.nextIndex[peerId] - 1
+				rf.updateCommitIndex()
+			} else {
+				// if AppendEntries fails because of log inconsistency: decrement nextIndex and retry
+				rf.nextIndex[peerId]--
+			}
 		}(id)
 	}
+}
+
+func (rf *Raft) updateCommitIndex() {
+	// assertion: is leader
+
+	// if there exists an N such that N > commitIndex, a majority
+	// of matchIndex[i] ≥ N, and log[N].term == currentTerm:
+	// set commitIndex = N
+	n := rf.logs.LastIndex()
+	for n > rf.commitIndex && rf.logs.Match(n, rf.currentTerm) {
+		if rf.canBeCommited(n) {
+			rf.commitIndex = n
+			return
+		}
+
+		n--
+	}
+}
+
+func (rf *Raft) canBeCommited(index int) bool {
+	// assertion: is leader
+	matchPeerNum := 0
+	for id := range rf.peers {
+		if id == rf.me || rf.matchIndex[id] >= index {
+			matchPeerNum++
+		}
+	}
+
+	return matchPeerNum*2 > len(rf.peers)
 }
 
 func (rf *Raft) sendAppendEntries(server int, args *AppendEntriesArgs, reply *AppendEntriesReply) bool {
