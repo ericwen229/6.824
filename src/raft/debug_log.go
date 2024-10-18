@@ -3,6 +3,7 @@ package raft
 import (
 	"fmt"
 	"os"
+	"time"
 )
 
 var (
@@ -29,5 +30,5 @@ func debugLog(category string, id int, format string, args ...interface{}) {
 		return
 	}
 
-	fmt.Printf("[%s] [%d] %s\n", category, id, fmt.Sprintf(format, args...))
+	fmt.Printf("%s [%s] [%d] %s\n", time.Now().Format("15:04:05.000"), category, id, fmt.Sprintf(format, args...))
 }
