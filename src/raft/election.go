@@ -9,8 +9,8 @@ func (rf *Raft) startElection() {
 	req := &RequestVoteArgs{
 		Term:         rf.currentTerm,
 		CandidateId:  rf.me,
-		LastLogIndex: rf.logs.LastIndex(),
-		LastLogTerm:  rf.logs.LastTerm(),
+		LastLogIndex: rf.logs.lastIndex(),
+		LastLogTerm:  rf.logs.lastTerm(),
 	}
 	for id := range rf.peers {
 		if id == rf.me {
@@ -113,7 +113,7 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 
 	// if votedFor is null or candidateId,
 	// and candidate's log is at least as up-to-date as receiver's log, grant vote
-	if (rf.votedFor == -1 || rf.votedFor == args.CandidateId) && rf.logs.IsUpToDate(args.LastLogIndex, args.LastLogTerm) {
+	if (rf.votedFor == votedForNoOne || rf.votedFor == args.CandidateId) && rf.logs.isUpToDate(args.LastLogIndex, args.LastLogTerm) {
 		rf.votedFor = args.CandidateId
 		reply.VoteGranted = true
 		rf.resetElectionTimeout()

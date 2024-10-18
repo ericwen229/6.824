@@ -1,7 +1,4 @@
-package util
-
-const zeroIndex = 0
-const nanTerm = -1
+package raft
 
 type LogEntries struct {
 	log []*LogEntry // index start from 1
@@ -12,32 +9,32 @@ type LogEntry struct {
 	Command interface{}
 }
 
-func NewEntries() *LogEntries {
+func newEntries() *LogEntries {
 	return &LogEntries{nil}
 }
 
-func (l *LogEntries) Len() int {
+func (l *LogEntries) len() int {
 	return len(l.log)
 }
 
-func (l *LogEntries) Append(entry *LogEntry) int {
+func (l *LogEntries) append(entry *LogEntry) int {
 	l.log = append(l.log, entry)
 	return len(l.log)
 }
 
-func (l *LogEntries) LastIndex() int {
+func (l *LogEntries) lastIndex() int {
 	return len(l.log)
 }
 
-func (l *LogEntries) LastTerm() int {
+func (l *LogEntries) lastTerm() int {
 	if len(l.log) == 0 {
 		return nanTerm
 	} else {
-		return l.get(l.LastIndex()).Term
+		return l.get(l.lastIndex()).Term
 	}
 }
 
-func (l *LogEntries) Match(index int, term int) bool {
+func (l *LogEntries) match(index int, term int) bool {
 	return l.isZeroIndex(index) || (l.isLegalIndex(index) && l.get(index).Term == term)
 }
 
@@ -65,21 +62,21 @@ func (l *LogEntries) truncateFrom(index int) {
 	l.log = l.log[:index-1]
 }
 
-func (l *LogEntries) Amend(index int, entries []*LogEntry) {
+func (l *LogEntries) amend(index int, entries []*LogEntry) {
 	for i, entry := range entries {
 		l.setOrAppend(index+i, entry)
 	}
 }
 
 func (l *LogEntries) isLegalIndex(index int) bool {
-	return index > zeroIndex && index <= l.LastIndex()
+	return index > zeroIndex && index <= l.lastIndex()
 }
 
 func (l *LogEntries) isZeroIndex(index int) bool {
 	return index == zeroIndex
 }
 
-func (l *LogEntries) PrevTerm(index int) int {
+func (l *LogEntries) prevTerm(index int) int {
 	if l.isZeroIndex(index - 1) {
 		return nanTerm
 	} else {
@@ -87,20 +84,20 @@ func (l *LogEntries) PrevTerm(index int) int {
 	}
 }
 
-func (l *LogEntries) GetEntriesStartingFrom(index int) []*LogEntry {
-	if index > l.LastIndex() {
+func (l *LogEntries) getEntriesStartingFrom(index int) []*LogEntry {
+	if index > l.lastIndex() {
 		return nil
 	} else {
 		return l.log[index-1:]
 	}
 }
 
-func (l *LogEntries) IsUpToDate(lastIndex int, lastTerm int) bool {
-	if lastTerm > l.LastTerm() {
+func (l *LogEntries) isUpToDate(lastIndex int, lastTerm int) bool {
+	if lastTerm > l.lastTerm() {
 		return true
-	} else if lastTerm < l.LastTerm() {
+	} else if lastTerm < l.lastTerm() {
 		return false
 	} else {
-		return lastIndex >= l.LastIndex()
+		return lastIndex >= l.lastIndex()
 	}
 }

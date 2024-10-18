@@ -23,8 +23,8 @@ func (rf *Raft) initiateAgreement() {
 		req := &AppendEntriesArgs{
 			Term:         rf.currentTerm,
 			PrevLogIndex: nextIndex - 1,
-			PrevLogTerm:  rf.logs.PrevTerm(nextIndex),
-			Entries:      rf.logs.GetEntriesStartingFrom(nextIndex),
+			PrevLogTerm:  rf.logs.prevTerm(nextIndex),
+			Entries:      rf.logs.getEntriesStartingFrom(nextIndex),
 			LeaderCommit: rf.commitIndex,
 		}
 
@@ -71,8 +71,8 @@ func (rf *Raft) updateCommitIndex() {
 	// if there exists an N such that N > commitIndex, a majority
 	// of matchIndex[i] ≥ N, and log[N].term == currentTerm:
 	// set commitIndex = N
-	n := rf.logs.LastIndex()
-	for n > rf.commitIndex && rf.logs.Match(n, rf.currentTerm) {
+	n := rf.logs.lastIndex()
+	for n > rf.commitIndex && rf.logs.match(n, rf.currentTerm) {
 		if rf.canBeCommited(n) {
 			rf.commitIndex = n
 			return
@@ -102,7 +102,7 @@ type AppendEntriesArgs struct {
 	Term         int
 	PrevLogIndex int
 	PrevLogTerm  int
-	Entries      []*util.LogEntry
+	Entries      []*LogEntry
 	LeaderCommit int
 }
 
@@ -145,7 +145,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 
 	// self is guaranteed to be follower from here
 
-	if !rf.logs.Match(args.PrevLogIndex, args.PrevLogTerm) {
+	if !rf.logs.match(args.PrevLogIndex, args.PrevLogTerm) {
 		// reply false if log doesn't contain an entry at prevLogIndex whose term matches prevLogTerm
 		reply.Success = false
 		return
@@ -158,7 +158,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 		// delete the existing entry and all that follow it
 		//
 		// Append any new entries not already in the log
-		rf.logs.Amend(args.PrevLogIndex+1, args.Entries)
+		rf.logs.amend(args.PrevLogIndex+1, args.Entries)
 	}
 
 	// If leaderCommit > commitIndex, set commitIndex = min(leaderCommit, index of last new entry)

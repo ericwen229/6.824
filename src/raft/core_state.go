@@ -27,14 +27,6 @@ import (
 	"6.824/raft/util"
 )
 
-type role string
-
-const (
-	follower  role = "follower"
-	candidate role = "candidate"
-	leader    role = "leader"
-)
-
 func (rf *Raft) isFollower() bool {
 	return rf.role == follower
 }
@@ -64,7 +56,7 @@ type Raft struct {
 	// Persistent states
 	currentTerm int
 	votedFor    int
-	logs        *util.LogEntries
+	logs        *LogEntries
 
 	// Volatile states
 	role             role
@@ -79,14 +71,14 @@ type Raft struct {
 func (rf *Raft) initFollower() {
 	rf.logState("-> follower 0")
 
-	rf.currentTerm = 0
-	rf.votedFor = -1
-	rf.logs = util.NewEntries()
+	rf.currentTerm = zeroTerm
+	rf.votedFor = votedForNoOne
+	rf.logs = newEntries()
 	rf.role = follower
 	rf.electionTimeout = util.NewCountdown(randElectionTimeout())
 	rf.heartbeatTimeout = nil
-	rf.commitIndex = 0
-	rf.lastApplied = 0
+	rf.commitIndex = zeroIndex
+	rf.lastApplied = zeroIndex
 	rf.nextIndex = nil
 	rf.matchIndex = nil
 }
@@ -151,7 +143,7 @@ func (rf *Raft) foundHigherTerm(term int) {
 	rf.logState("%s %d -> follower %d", rf.role, rf.currentTerm, term)
 
 	rf.currentTerm = term
-	rf.votedFor = -1
+	rf.votedFor = votedForNoOne
 	// rf.logs not changed
 	rf.role = follower
 	if rf.electionTimeout == nil { // use to be leader
@@ -178,7 +170,7 @@ func (rf *Raft) candidate2Leader() {
 	rf.nextIndex = make([]int, len(rf.peers))
 	for i := 0; i < len(rf.peers); i++ {
 		if i != rf.me {
-			rf.nextIndex[i] = rf.logs.LastIndex() + 1
+			rf.nextIndex[i] = rf.logs.lastIndex() + 1
 		}
 	}
 	rf.matchIndex = make([]int, len(rf.peers))
@@ -188,7 +180,7 @@ func (rf *Raft) candidate2Leader() {
 }
 
 func (rf *Raft) appendEntryLocal(command interface{}) (int, int) {
-	return rf.logs.Append(&util.LogEntry{Term: rf.currentTerm, Command: command}), rf.currentTerm
+	return rf.logs.append(&LogEntry{Term: rf.currentTerm, Command: command}), rf.currentTerm
 }
 
 func (rf *Raft) resetElectionTimeout() {
