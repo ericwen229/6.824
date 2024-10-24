@@ -5,6 +5,8 @@ import (
 )
 
 func (rf *Raft) startElection() {
+	rf.logElection("starting election for term %d", rf.currentTerm)
+
 	var peerVoteCount int32 = 0
 	req := &RequestVoteArgs{
 		Term:         rf.currentTerm,
@@ -40,6 +42,9 @@ func (rf *Raft) startElection() {
 
 			if resp.VoteGranted {
 				voteCount := int(atomic.AddInt32(&peerVoteCount, 1)) + 1
+
+				rf.logElection("vote count: %d / %d", voteCount, len(rf.peers))
+
 				// if votes received from majority of servers: become leader
 				if 2*voteCount > len(rf.peers) {
 					rf.candidate2Leader()
@@ -79,7 +84,14 @@ func (rf *Raft) startElection() {
 // the struct itself.
 //
 func (rf *Raft) sendRequestVote(server int, args *RequestVoteArgs, reply *RequestVoteReply) bool {
-	return rf.peers[server].Call("Raft.RequestVote", args, reply)
+	rf.logElection("RequestVote -> %d: %+v", server, args)
+	if rf.peers[server].Call("Raft.RequestVote", args, reply) {
+		rf.logElection("RequestVote <- %d: %+v", server, reply)
+		return true
+	} else {
+		rf.logElection("RequestVote <- %d: none", server)
+		return false
+	}
 }
 
 type RequestVoteArgs struct {

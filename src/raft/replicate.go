@@ -11,6 +11,10 @@ func (rf *Raft) broadcastHeartbeat() {
 }
 
 func (rf *Raft) initiateAgreement() {
+	rf.logReplicate("starting replicate for term %d", rf.currentTerm)
+	rf.logReplicate("nextIndex before: %+v", rf.nextIndex)
+	rf.logReplicate("matchIndex before: %+v", rf.matchIndex)
+
 	rf.resetHeartbeatTimeout()
 
 	for id := range rf.peers {
@@ -61,6 +65,9 @@ func (rf *Raft) initiateAgreement() {
 				// if AppendEntries fails because of log inconsistency: decrement nextIndex and retry
 				rf.nextIndex[peerId]--
 			}
+
+			rf.logReplicate("nextIndex after: %+v (peer %d)", rf.nextIndex, peerId)
+			rf.logReplicate("matchIndex after: %+v (peer %d)", rf.matchIndex, peerId)
 		}(id)
 	}
 }
