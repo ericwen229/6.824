@@ -1,50 +1,61 @@
 package raft
 
-import (
-	"sync/atomic"
-)
-
 func (rf *Raft) startElection() {
-	var peerVoteCount int32 = 0
-	peerNum := len(rf.peers)
+	rf.logElection("starting election for term %d", rf.currentTerm)
 
-	req := &RequestVoteArgs{
-		Term:        rf.currentTerm,
-		CandidateId: rf.me,
-	}
+	var peerVoteCount = 0
 	for id := range rf.peers {
 		if id == rf.me {
 			continue
 		}
 
-		go func(peerId int) {
-			resp := &RequestVoteReply{}
-			if !rf.sendRequestVote(peerId, req, resp) {
-				return
-			}
+		rf.requestVoteFromPeer(id, &peerVoteCount)
+	}
+}
 
-			// process
-			rf.mu.Lock()
-			defer rf.mu.Unlock()
+func (rf *Raft) requestVoteFromPeer(peerId int, peerVoteCount *int) {
+	req := &RequestVoteArgs{
+		Term:         rf.currentTerm,
+		CandidateId:  rf.me,
+		LastLogIndex: rf.logs.lastIndex(),
+		LastLogTerm:  rf.logs.lastTerm(),
+	}
 
-			// if RPC request or response contains term T > currentTerm: set currentTerm = T, convert to follower
-			if resp.Term > rf.currentTerm {
-				rf.foundHigherTerm(resp.Term)
-				return
-			} else if resp.Term < rf.currentTerm {
-				// out of date
-				return
-			}
+	go func() {
+		resp := &RequestVoteReply{}
+		if !rf.sendRequestVote(peerId, req, resp) {
+			return
+		}
 
-			if resp.VoteGranted {
-				voteCount := int(atomic.AddInt32(&peerVoteCount, 1)) + 1
-				// if votes received from majority of servers: become leader
-				if 2*voteCount > peerNum && rf.isCandidate() {
-					// may have already become leader or lost election and become follower
-					rf.candidate2Leader()
-				}
-			}
-		}(id)
+		rf.handleRequestVoteRespFromPeer(req, resp, peerVoteCount)
+	}()
+}
+
+func (rf *Raft) handleRequestVoteRespFromPeer(req *RequestVoteArgs, resp *RequestVoteReply, peerVoteCount *int) {
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
+
+	// if RPC request or response contains term T > currentTerm: set currentTerm = T, convert to follower
+	if resp.Term > rf.currentTerm {
+		rf.foundHigherTerm(resp.Term)
+		return
+	}
+
+	// out of date
+	if rf.currentTerm > req.Term || !rf.isCandidate() {
+		return
+	}
+
+	if resp.VoteGranted {
+		*peerVoteCount += 1
+		voteCount := *peerVoteCount + 1
+
+		rf.logElection("vote count: %d / %d", voteCount, len(rf.peers))
+
+		// if votes received from majority of servers: become leader
+		if 2*voteCount > len(rf.peers) {
+			rf.candidate2Leader()
+		}
 	}
 }
 
@@ -78,12 +89,21 @@ func (rf *Raft) startElection() {
 // the struct itself.
 //
 func (rf *Raft) sendRequestVote(server int, args *RequestVoteArgs, reply *RequestVoteReply) bool {
-	return rf.peers[server].Call("Raft.RequestVote", args, reply)
+	rf.logElection("RequestVote -> %d: %+v", server, args)
+	if rf.peers[server].Call("Raft.RequestVote", args, reply) {
+		rf.logElection("RequestVote <- %d: %+v", server, reply)
+		return true
+	} else {
+		rf.logElection("RequestVote <- %d: none", server)
+		return false
+	}
 }
 
 type RequestVoteArgs struct {
-	Term        int
-	CandidateId int
+	Term         int
+	CandidateId  int
+	LastLogIndex int
+	LastLogTerm  int
 }
 
 type RequestVoteReply struct {
@@ -110,8 +130,9 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 
 	// if votedFor is null or candidateId,
 	// and candidate's log is at least as up-to-date as receiver's log, grant vote
-	if rf.votedFor == -1 || rf.votedFor == args.CandidateId {
+	if (rf.votedFor == votedForNoOne || rf.votedFor == args.CandidateId) && rf.logs.isUpToDate(args.LastLogIndex, args.LastLogTerm) {
 		rf.votedFor = args.CandidateId
 		reply.VoteGranted = true
+		rf.resetElectionTimeout()
 	}
 }

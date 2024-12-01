@@ -5,12 +5,12 @@ import (
 	"time"
 )
 
-const TickIntervalMs int64 = 5
+const tickIntervalMs int64 = 5
 
 func (rf *Raft) ticker() {
 	for rf.killed() == false {
-		time.Sleep(time.Duration(TickIntervalMs) * time.Millisecond)
-		rf.tick(TickIntervalMs)
+		time.Sleep(time.Duration(tickIntervalMs) * time.Millisecond)
+		rf.tick(tickIntervalMs)
 	}
 }
 
