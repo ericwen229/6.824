@@ -22,53 +22,59 @@ func (rf *Raft) initiateAgreement() {
 			continue
 		}
 
-		nextIndex := rf.nextIndex[id]
-		matchIndex := rf.matchIndex[id]
-		req := &AppendEntriesArgs{
-			Term:         rf.currentTerm,
-			PrevLogIndex: nextIndex - 1,
-			PrevLogTerm:  rf.logs.prevTerm(nextIndex),
-			Entries:      rf.logs.getEntriesStartingFrom(nextIndex),
-			LeaderCommit: rf.commitIndex,
+		rf.initiateAgreementWithPeer(id)
+	}
+}
+
+func (rf *Raft) initiateAgreementWithPeer(peerId int) {
+	nextIndex := rf.nextIndex[peerId]
+	matchIndex := rf.matchIndex[peerId]
+	req := &AppendEntriesArgs{
+		Term:         rf.currentTerm,
+		PrevLogIndex: nextIndex - 1,
+		PrevLogTerm:  rf.logs.prevTerm(nextIndex),
+		Entries:      rf.logs.getEntriesStartingFrom(nextIndex),
+		LeaderCommit: rf.commitIndex,
+	}
+
+	go func() {
+		resp := &AppendEntriesReply{}
+		if !rf.sendAppendEntries(peerId, req, resp) {
+			return
 		}
 
-		go func(peerId int) {
-			resp := &AppendEntriesReply{}
-			if !rf.sendAppendEntries(peerId, req, resp) {
-				return
-			}
+		rf.handleAppendEntriesRespFromPeer(req, resp, peerId, nextIndex, matchIndex)
+	}()
+}
 
-			// post process
-			rf.mu.Lock()
-			defer rf.mu.Unlock()
+func (rf *Raft) handleAppendEntriesRespFromPeer(
+	req *AppendEntriesArgs, resp *AppendEntriesReply, peerId int, oldNextIndex int, oldMatchIndex int) {
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
 
-			// if RPC request or response contains term T > currentTerm: set currentTerm = T, convert to follower
-			if resp.Term > rf.currentTerm {
-				rf.foundHigherTerm(resp.Term)
-				return
-			}
+	// if RPC request or response contains term T > currentTerm: set currentTerm = T, convert to follower
+	if resp.Term > rf.currentTerm {
+		rf.foundHigherTerm(resp.Term)
+		return
+	}
 
-			// out of date
-			if rf.currentTerm > req.Term ||
-				!rf.isLeader() ||
-				rf.nextIndex[peerId] != nextIndex ||
-				rf.matchIndex[peerId] != matchIndex {
-				return
-			}
+	// out of date
+	if rf.currentTerm > req.Term ||
+		!rf.isLeader() ||
+		rf.nextIndex[peerId] != oldNextIndex ||
+		rf.matchIndex[peerId] != oldMatchIndex {
+		return
+	}
 
-			if resp.Success {
-				// if successful: update nextIndex and matchIndex for follower
-				rf.nextIndex[peerId] += len(req.Entries)
-				rf.matchIndex[peerId] = rf.nextIndex[peerId] - 1
-				rf.updateCommitIndex()
-			} else {
-				// if AppendEntries fails because of log inconsistency: decrement nextIndex and retry
-				rf.nextIndex[peerId]--
-			}
-
-			rf.logReplicate("nextIndex after: %+v (peer %d)", rf.nextIndex, peerId)
-			rf.logReplicate("matchIndex after: %+v (peer %d)", rf.matchIndex, peerId)
-		}(id)
+	if resp.Success {
+		// if successful: update nextIndex and matchIndex for follower
+		rf.nextIndex[peerId] += len(req.Entries)
+		rf.matchIndex[peerId] = rf.nextIndex[peerId] - 1
+		rf.updateCommitIndex()
+	} else {
+		// if AppendEntries fails because of log inconsistency: decrement nextIndex and retry
+		rf.nextIndex[peerId]--
+		rf.initiateAgreementWithPeer(peerId)
 	}
 }
 
