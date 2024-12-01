@@ -1,56 +1,61 @@
 package raft
 
-import (
-	"sync/atomic"
-)
-
 func (rf *Raft) startElection() {
 	rf.logElection("starting election for term %d", rf.currentTerm)
 
-	var peerVoteCount int32 = 0
+	var peerVoteCount = 0
+	for id := range rf.peers {
+		if id == rf.me {
+			continue
+		}
+
+		rf.requestVoteFromPeer(id, &peerVoteCount)
+	}
+}
+
+func (rf *Raft) requestVoteFromPeer(peerId int, peerVoteCount *int) {
 	req := &RequestVoteArgs{
 		Term:         rf.currentTerm,
 		CandidateId:  rf.me,
 		LastLogIndex: rf.logs.lastIndex(),
 		LastLogTerm:  rf.logs.lastTerm(),
 	}
-	for id := range rf.peers {
-		if id == rf.me {
-			continue
+
+	go func() {
+		resp := &RequestVoteReply{}
+		if !rf.sendRequestVote(peerId, req, resp) {
+			return
 		}
 
-		go func(peerId int) {
-			resp := &RequestVoteReply{}
-			if !rf.sendRequestVote(peerId, req, resp) {
-				return
-			}
+		rf.handleRequestVoteRespFromPeer(req, resp, peerVoteCount)
+	}()
+}
 
-			// process
-			rf.mu.Lock()
-			defer rf.mu.Unlock()
+func (rf *Raft) handleRequestVoteRespFromPeer(req *RequestVoteArgs, resp *RequestVoteReply, peerVoteCount *int) {
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
 
-			// if RPC request or response contains term T > currentTerm: set currentTerm = T, convert to follower
-			if resp.Term > rf.currentTerm {
-				rf.foundHigherTerm(resp.Term)
-				return
-			}
+	// if RPC request or response contains term T > currentTerm: set currentTerm = T, convert to follower
+	if resp.Term > rf.currentTerm {
+		rf.foundHigherTerm(resp.Term)
+		return
+	}
 
-			// out of date
-			if rf.currentTerm > req.Term || !rf.isCandidate() {
-				return
-			}
+	// out of date
+	if rf.currentTerm > req.Term || !rf.isCandidate() {
+		return
+	}
 
-			if resp.VoteGranted {
-				voteCount := int(atomic.AddInt32(&peerVoteCount, 1)) + 1
+	if resp.VoteGranted {
+		*peerVoteCount += 1
+		voteCount := *peerVoteCount + 1
 
-				rf.logElection("vote count: %d / %d", voteCount, len(rf.peers))
+		rf.logElection("vote count: %d / %d", voteCount, len(rf.peers))
 
-				// if votes received from majority of servers: become leader
-				if 2*voteCount > len(rf.peers) {
-					rf.candidate2Leader()
-				}
-			}
-		}(id)
+		// if votes received from majority of servers: become leader
+		if 2*voteCount > len(rf.peers) {
+			rf.candidate2Leader()
+		}
 	}
 }
 
