@@ -167,11 +167,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 	reply.Success = true
 
 	if len(args.Entries) > 0 {
-		// If an existing entry conflicts with a new one (same index but different terms),
-		// delete the existing entry and all that follow it
-		//
-		// Append any new entries not already in the log
-		rf.logs.amend(args.PrevLogIndex+1, args.Entries)
+		rf.amendEntries(args.PrevLogIndex+1, args.Entries)
 	}
 
 	// If leaderCommit > commitIndex, set commitIndex = min(leaderCommit, index of last new entry)

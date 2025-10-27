@@ -128,11 +128,5 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 		return
 	}
 
-	// if votedFor is null or candidateId,
-	// and candidate's log is at least as up-to-date as receiver's log, grant vote
-	if (rf.votedFor == votedForNoOne || rf.votedFor == args.CandidateId) && rf.logs.isUpToDate(args.LastLogIndex, args.LastLogTerm) {
-		rf.votedFor = args.CandidateId
-		reply.VoteGranted = true
-		rf.resetElectionTimeout()
-	}
+	reply.VoteGranted = rf.tryVoteFor(args.CandidateId, args.LastLogIndex, args.LastLogTerm)
 }

@@ -63,6 +63,10 @@ func (l *LogEntries) truncateFrom(index int) {
 }
 
 func (l *LogEntries) amend(index int, entries []*LogEntry) {
+	// If an existing entry conflicts with a new one (same index but different terms),
+	// delete the existing entry and all that follow it
+	//
+	// Append any new entries not already in the log
 	for i, entry := range entries {
 		l.setOrAppend(index+i, entry)
 	}
