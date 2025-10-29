@@ -73,7 +73,15 @@ func (rf *Raft) handleAppendEntriesRespFromPeer(
 		rf.updateCommitIndex()
 	} else {
 		// if AppendEntries fails because of log inconsistency: decrement nextIndex and retry
-		rf.nextIndex[peerId]--
+		if resp.ConflictTerm == nanTerm {
+			rf.nextIndex[peerId] = resp.ConflictIndex
+		} else {
+			if idx := rf.logs.lastIndexOfTerm(resp.ConflictTerm); idx == nanIndex {
+				rf.nextIndex[peerId] = resp.ConflictIndex
+			} else {
+				rf.nextIndex[peerId] = idx + 1
+			}
+		}
 		rf.initiateAgreementWithPeer(peerId)
 	}
 }
@@ -120,8 +128,10 @@ type AppendEntriesArgs struct {
 }
 
 type AppendEntriesReply struct {
-	Term    int
-	Success bool
+	Term          int
+	Success       bool
+	ConflictIndex int
+	ConflictTerm  int
 }
 
 func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply) {
@@ -131,6 +141,8 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 	// default value
 	reply.Term = rf.currentTerm
 	reply.Success = false
+	reply.ConflictIndex = nanIndex
+	reply.ConflictTerm = nanTerm
 
 	// if RPC request or response contains term T > currentTerm: set currentTerm = T, convert to follower
 	if args.Term > rf.currentTerm {
@@ -161,6 +173,14 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 	if !rf.logs.match(args.PrevLogIndex, args.PrevLogTerm) {
 		// reply false if log doesn't contain an entry at prevLogIndex whose term matches prevLogTerm
 		reply.Success = false
+
+		if !rf.logs.isLegalIndex(args.PrevLogIndex) {
+			reply.ConflictIndex = rf.logs.lastIndex() + 1
+		} else {
+			reply.ConflictTerm = rf.logs.get(args.PrevLogIndex).Term
+			reply.ConflictIndex = rf.logs.firstIndexOfTerm(reply.ConflictTerm, args.PrevLogIndex)
+		}
+
 		return
 	}
 
