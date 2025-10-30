@@ -1,6 +1,7 @@
 package raft
 
 // index
+const nanIndex = -1
 const zeroIndex = 0
 
 // term

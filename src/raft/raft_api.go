@@ -82,7 +82,7 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 		return -1, -1, false
 	}
 
-	index, term := rf.appendEntryLocal(command)
+	index, term := rf.appendEntry(command)
 	rf.initiateAgreement()
 
 	return index, term, true

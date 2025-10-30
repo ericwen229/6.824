@@ -103,6 +103,8 @@ func (rf *Raft) follower2Candidate() {
 	// rf.nextIndex not changed
 	// rf.matchIndex not changed
 
+	rf.persist()
+
 	rf.startElection()
 }
 
@@ -136,6 +138,8 @@ func (rf *Raft) candidateRetryElection() {
 	// rf.nextIndex not changed
 	// rf.matchIndex not changed
 
+	rf.persist()
+
 	rf.startElection()
 }
 
@@ -154,6 +158,8 @@ func (rf *Raft) foundHigherTerm(term int) {
 	// rf.lastApplied not changed
 	rf.nextIndex = nil
 	rf.matchIndex = nil
+
+	rf.persist()
 }
 
 func (rf *Raft) candidate2Leader() {
@@ -179,8 +185,28 @@ func (rf *Raft) candidate2Leader() {
 	rf.broadcastHeartbeat()
 }
 
-func (rf *Raft) appendEntryLocal(command interface{}) (int, int) {
-	return rf.logs.append(&LogEntry{Term: rf.currentTerm, Command: command}), rf.currentTerm
+func (rf *Raft) tryVoteFor(candidateId int, lastLogIndex int, lastLogTerm int) bool {
+	// if votedFor is null or candidateId,
+	// and candidate's log is at least as up-to-date as receiver's log, grant vote
+	if (rf.votedFor == votedForNoOne || rf.votedFor == candidateId) && rf.logs.isUpToDate(lastLogIndex, lastLogTerm) {
+		rf.votedFor = candidateId
+		rf.persist()
+		rf.resetElectionTimeout()
+		return true
+	} else {
+		return false
+	}
+}
+
+func (rf *Raft) appendEntry(command interface{}) (int, int) {
+	index, term := rf.logs.append(&LogEntry{Term: rf.currentTerm, Command: command}), rf.currentTerm
+	rf.persist()
+	return index, term
+}
+
+func (rf *Raft) amendEntries(index int, entries []*LogEntry) {
+	rf.logs.amend(index, entries)
+	rf.persist()
 }
 
 func (rf *Raft) resetElectionTimeout() {

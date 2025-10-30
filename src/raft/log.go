@@ -63,6 +63,10 @@ func (l *LogEntries) truncateFrom(index int) {
 }
 
 func (l *LogEntries) amend(index int, entries []*LogEntry) {
+	// If an existing entry conflicts with a new one (same index but different terms),
+	// delete the existing entry and all that follow it
+	//
+	// Append any new entries not already in the log
 	for i, entry := range entries {
 		l.setOrAppend(index+i, entry)
 	}
@@ -100,4 +104,20 @@ func (l *LogEntries) isUpToDate(lastIndex int, lastTerm int) bool {
 	} else {
 		return lastIndex >= l.lastIndex()
 	}
+}
+
+func (l *LogEntries) firstIndexOfTerm(term int, index int) int {
+	for l.isLegalIndex(index-1) && l.get(index-1).Term == term {
+		index--
+	}
+	return index
+}
+
+func (l *LogEntries) lastIndexOfTerm(term int) int {
+	for i := l.lastIndex(); l.isLegalIndex(i); i-- {
+		if l.get(i).Term == term {
+			return i
+		}
+	}
+	return nanIndex
 }
