@@ -20,7 +20,7 @@ func (rf *Raft) tryApply(applyCh chan ApplyMsg) {
 	baseIndex := rf.lastApplied + 1
 	for rf.commitIndex > rf.lastApplied {
 		rf.lastApplied++
-		entriesToApply = append(entriesToApply, rf.logs.get(rf.lastApplied))
+		entriesToApply = append(entriesToApply, rf.logs.Get(rf.lastApplied))
 	}
 	rf.mu.Unlock()
 

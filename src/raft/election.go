@@ -17,8 +17,8 @@ func (rf *Raft) requestVoteFromPeer(peerId int, peerVoteCount *int) {
 	req := &RequestVoteArgs{
 		Term:         rf.currentTerm,
 		CandidateId:  rf.me,
-		LastLogIndex: rf.logs.lastIndex(),
-		LastLogTerm:  rf.logs.lastTerm(),
+		LastLogIndex: rf.logs.LastIndex(),
+		LastLogTerm:  rf.logs.LastTerm(),
 	}
 
 	go func() {

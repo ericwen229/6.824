@@ -32,8 +32,8 @@ func (rf *Raft) initiateAgreementWithPeer(peerId int) {
 	req := &AppendEntriesArgs{
 		Term:         rf.currentTerm,
 		PrevLogIndex: nextIndex - 1,
-		PrevLogTerm:  rf.logs.prevTerm(nextIndex),
-		Entries:      rf.logs.getEntriesStartingFrom(nextIndex),
+		PrevLogTerm:  rf.logs.PrevTerm(nextIndex),
+		Entries:      rf.logs.GetEntriesStartingFrom(nextIndex),
 		LeaderCommit: rf.commitIndex,
 	}
 
@@ -76,7 +76,7 @@ func (rf *Raft) handleAppendEntriesRespFromPeer(
 		if resp.ConflictTerm == nanTerm {
 			rf.nextIndex[peerId] = resp.ConflictIndex
 		} else {
-			if idx := rf.logs.lastIndexOfTerm(resp.ConflictTerm); idx == nanIndex {
+			if idx := rf.logs.LastIndexOfTerm(resp.ConflictTerm); idx == nanIndex {
 				rf.nextIndex[peerId] = resp.ConflictIndex
 			} else {
 				rf.nextIndex[peerId] = idx + 1
@@ -92,8 +92,8 @@ func (rf *Raft) updateCommitIndex() {
 	// if there exists an N such that N > commitIndex, a majority
 	// of matchIndex[i] ≥ N, and log[N].term == currentTerm:
 	// set commitIndex = N
-	n := rf.logs.lastIndex()
-	for n > rf.commitIndex && rf.logs.match(n, rf.currentTerm) {
+	n := rf.logs.LastIndex()
+	for n > rf.commitIndex && rf.logs.Match(n, rf.currentTerm) {
 		if rf.canBeCommited(n) {
 			rf.commitIndex = n
 			return
@@ -170,17 +170,16 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 
 	// self is guaranteed to be follower from here
 
-	if !rf.logs.match(args.PrevLogIndex, args.PrevLogTerm) {
+	if !rf.logs.Match(args.PrevLogIndex, args.PrevLogTerm) {
 		// reply false if log doesn't contain an entry at prevLogIndex whose term matches prevLogTerm
 		reply.Success = false
 
-		if !rf.logs.isLegalIndex(args.PrevLogIndex) {
-			reply.ConflictIndex = rf.logs.lastIndex() + 1
+		if !rf.logs.ContainsLog(args.PrevLogIndex) {
+			reply.ConflictIndex = rf.logs.LastIndex() + 1
 		} else {
-			reply.ConflictTerm = rf.logs.get(args.PrevLogIndex).Term
-			reply.ConflictIndex = rf.logs.firstIndexOfTerm(reply.ConflictTerm, args.PrevLogIndex)
+			reply.ConflictTerm = rf.logs.Get(args.PrevLogIndex).Term
+			reply.ConflictIndex = rf.logs.FirstIndexOfTerm(reply.ConflictTerm, args.PrevLogIndex)
 		}
-
 		return
 	}
 
@@ -191,7 +190,9 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 	}
 
 	// If leaderCommit > commitIndex, set commitIndex = min(leaderCommit, index of last new entry)
+	rf.logReplicate("leaderCommit: %d", args.LeaderCommit)
 	if args.LeaderCommit > rf.commitIndex {
 		rf.commitIndex = util.Min(args.LeaderCommit, args.PrevLogIndex+len(args.Entries))
+		rf.logReplicate("peer update commitIndex: %d", rf.commitIndex)
 	}
 }
