@@ -13,10 +13,6 @@ func newEntries() *LogEntries {
 	return &LogEntries{nil}
 }
 
-func (l *LogEntries) len() int {
-	return len(l.log)
-}
-
 func (l *LogEntries) append(entry *LogEntry) int {
 	l.log = append(l.log, entry)
 	return len(l.log)

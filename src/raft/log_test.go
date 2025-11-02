@@ -8,12 +8,10 @@ import (
 
 func TestAppendAndQuery(t *testing.T) {
 	logs := newEntries()
-	assert.Equal(t, 0, logs.len())
 
 	logs.append(&LogEntry{1, 1})
 	logs.append(&LogEntry{2, 2})
 	logs.append(&LogEntry{3, 3})
-	assert.Equal(t, 3, logs.len())
 	assert.Equal(t, 3, logs.lastIndex())
 	assert.True(t, logs.match(0, 0))
 	assert.True(t, logs.match(0, 2147483647))
@@ -37,7 +35,6 @@ func TestTruncate(t *testing.T) {
 		{5, 5},
 	}}
 	logs.truncateFrom(3)
-	assert.Equal(t, 2, logs.len())
 	assert.Equal(t, 2, logs.lastIndex())
 	assert.Equal(t, 1, logs.get(1).Term)
 	assert.Equal(t, 2, logs.get(2).Term)
@@ -52,11 +49,9 @@ func TestSetOrAppendNoTruncate(t *testing.T) {
 		{5, 5},
 	}}
 	logs.setOrAppend(3, &LogEntry{3, 0}) // value has no effect
-	assert.Equal(t, 5, logs.len())
 	assert.Equal(t, 3, logs.get(3).Command.(int))
 
 	logs.setOrAppend(6, &LogEntry{6, 6})
-	assert.Equal(t, 6, logs.len())
 	assert.Equal(t, 6, logs.get(6).Command.(int))
 }
 
@@ -69,7 +64,6 @@ func TestSetOrAppendTruncate(t *testing.T) {
 		{5, 5},
 	}}
 	logs.setOrAppend(3, &LogEntry{4, 0})
-	assert.Equal(t, 3, logs.len())
 	assert.Equal(t, 4, logs.get(3).Term)
 	assert.Equal(t, 0, logs.get(3).Command.(int))
 }
