@@ -4,7 +4,7 @@ import "fmt"
 
 type LogEntries struct {
 	log       []*LogEntry
-	snapshot  interface{}
+	snapshot  []byte
 	snapIndex int
 	snapTerm  int
 }
@@ -14,7 +14,7 @@ type LogEntry struct {
 	Command interface{}
 }
 
-func NewEntries() *LogEntries {
+func NewLogEntries() *LogEntries {
 	return &LogEntries{
 		log:       nil,
 		snapshot:  nil,
@@ -100,6 +100,22 @@ func (l *LogEntries) Amend(index int, entries []*LogEntry) {
 	for i, entry := range entries {
 		l.setOrAppend(index+i, entry)
 	}
+}
+
+func (l *LogEntries) UpdateSnapshot(index int, snapshot []byte) {
+	if index == l.snapIndex { // snapshot not updated
+		return
+	} else if index < l.snapIndex { // out of date snapshot
+		panic(fmt.Errorf("invalid index: %d", index))
+	}
+
+	term := l.Get(index).Term
+	newBase := l.index2i(index) + 1
+
+	l.snapshot = snapshot
+	l.snapIndex = index
+	l.snapTerm = term
+	l.log = l.log[newBase:]
 }
 
 func (l *LogEntries) GetEntriesStartingFrom(index int) []*LogEntry {

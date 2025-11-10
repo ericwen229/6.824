@@ -7,7 +7,7 @@ import (
 )
 
 func TestAppendAndQuery(t *testing.T) {
-	logs := NewEntries()
+	logs := NewLogEntries()
 
 	logs.Append(&LogEntry{1, 1})
 	logs.Append(&LogEntry{2, 2})

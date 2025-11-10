@@ -25,6 +25,7 @@ func (rf *Raft) tryApply(applyCh chan ApplyMsg) {
 	rf.mu.Unlock()
 
 	for i, entry := range entriesToApply {
+		rf.logCommit("apply %d", baseIndex+i)
 		applyCh <- ApplyMsg{
 			CommandValid:  true,
 			Command:       entry.Command,

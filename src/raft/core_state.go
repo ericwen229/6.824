@@ -73,7 +73,7 @@ func (rf *Raft) initFollower() {
 
 	rf.currentTerm = zeroTerm
 	rf.votedFor = votedForNoOne
-	rf.logs = NewEntries()
+	rf.logs = NewLogEntries()
 	rf.role = follower
 	rf.electionTimeout = util.NewCountdown(randElectionTimeout())
 	rf.heartbeatTimeout = nil
@@ -206,6 +206,11 @@ func (rf *Raft) appendEntry(command interface{}) (int, int) {
 
 func (rf *Raft) amendEntries(index int, entries []*LogEntry) {
 	rf.logs.Amend(index, entries)
+	rf.persist()
+}
+
+func (rf *Raft) updateSnapshot(index int, snapshot []byte) {
+	rf.logs.UpdateSnapshot(index, snapshot)
 	rf.persist()
 }
 

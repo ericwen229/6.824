@@ -12,8 +12,6 @@ func (rf *Raft) broadcastHeartbeat() {
 
 func (rf *Raft) initiateAgreement() {
 	rf.logReplicate("starting replicate for term %d", rf.currentTerm)
-	rf.logReplicate("nextIndex before: %+v", rf.nextIndex)
-	rf.logReplicate("matchIndex before: %+v", rf.matchIndex)
 
 	rf.resetHeartbeatTimeout()
 
@@ -84,6 +82,7 @@ func (rf *Raft) handleAppendEntriesRespFromPeer(
 		}
 		rf.initiateAgreementWithPeer(peerId)
 	}
+	rf.logReplicate("nextIndex %+v, matchIndex %+v", rf.nextIndex, rf.matchIndex)
 }
 
 func (rf *Raft) updateCommitIndex() {
@@ -190,9 +189,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 	}
 
 	// If leaderCommit > commitIndex, set commitIndex = min(leaderCommit, index of last new entry)
-	rf.logReplicate("leaderCommit: %d", args.LeaderCommit)
 	if args.LeaderCommit > rf.commitIndex {
 		rf.commitIndex = util.Min(args.LeaderCommit, args.PrevLogIndex+len(args.Entries))
-		rf.logReplicate("peer update commitIndex: %d", rf.commitIndex)
 	}
 }
