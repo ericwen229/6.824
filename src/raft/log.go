@@ -116,6 +116,11 @@ func (l *LogEntries) UpdateSnapshot(index int, snapshot []byte) {
 	l.snapIndex = index
 	l.snapTerm = term
 	l.log = l.log[newBase:]
+
+	// deep copy to avoid memory leak
+	log := make([]*LogEntry, 0, len(l.log))
+	copy(log, l.log)
+	l.log = log
 }
 
 func (l *LogEntries) GetEntriesStartingFrom(index int) []*LogEntry {
