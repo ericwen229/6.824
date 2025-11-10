@@ -47,7 +47,11 @@ func (rf *Raft) readPersist(data []byte, snapshot []byte) {
 	rf.currentTerm = currentTerm
 	rf.votedFor = votedFor
 	rf.logs.log = log
-	rf.logs.snapshot = snapshot
+	if len(snapshot) > 0 {
+		rf.logs.snapshot = snapshot
+	} else {
+		rf.logs.snapshot = nil
+	}
 	rf.logs.snapIndex = snapIndex
 	rf.logs.snapTerm = snapTerm
 }

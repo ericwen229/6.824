@@ -83,6 +83,9 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 	}
 
 	index, term := rf.appendEntry(command)
+
+	rf.logReplicate("start %d -> %v", index, command)
+
 	rf.initiateAgreement()
 
 	return index, term, true
