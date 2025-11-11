@@ -51,7 +51,7 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.initFollower()
 
 	// initialize from state persisted before a crash
-	rf.readPersist(persister.ReadRaftState())
+	rf.readPersist(persister.ReadRaftState(), persister.ReadSnapshot())
 
 	// start long-running goroutines
 	go rf.ticker()
@@ -83,6 +83,9 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 	}
 
 	index, term := rf.appendEntry(command)
+
+	rf.logReplicate("start %d -> %v", index, command)
+
 	rf.initiateAgreement()
 
 	return index, term, true
@@ -110,7 +113,6 @@ func (rf *Raft) GetState() (int, bool) {
 //
 func (rf *Raft) Kill() {
 	atomic.StoreInt32(&rf.dead, 1)
-	// Your code here, if desired.
 }
 
 //
@@ -118,9 +120,6 @@ func (rf *Raft) Kill() {
 // have more recent info since it communicate the snapshot on applyCh.
 //
 func (rf *Raft) CondInstallSnapshot(lastIncludedTerm int, lastIncludedIndex int, snapshot []byte) bool {
-
-	// Your code here (2D).
-
 	return true
 }
 
@@ -129,5 +128,9 @@ func (rf *Raft) CondInstallSnapshot(lastIncludedTerm int, lastIncludedIndex int,
 // service no longer needs the log through (and including)
 // that index. Raft should now trim its log as much as possible.
 func (rf *Raft) Snapshot(index int, snapshot []byte) {
-	// Your code here (2D).
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
+
+	rf.logCommit("snapshot at %d", index)
+	rf.updateSnapshot(index, nanTerm, snapshot)
 }

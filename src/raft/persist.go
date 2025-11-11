@@ -17,14 +17,16 @@ func (rf *Raft) persist() {
 	util.PanicIfErr(encoder.Encode(rf.currentTerm))
 	util.PanicIfErr(encoder.Encode(rf.votedFor))
 	util.PanicIfErr(encoder.Encode(rf.logs.log))
+	util.PanicIfErr(encoder.Encode(rf.logs.snapIndex))
+	util.PanicIfErr(encoder.Encode(rf.logs.snapTerm))
 	data := writer.Bytes()
-	rf.persister.SaveRaftState(data)
+	rf.persister.SaveStateAndSnapshot(data, rf.logs.snapshot)
 }
 
 //
 // restore previously persisted state.
 //
-func (rf *Raft) readPersist(data []byte) {
+func (rf *Raft) readPersist(data []byte, snapshot []byte) {
 	if data == nil || len(data) < 1 { // bootstrap without any state?
 		return
 	}
@@ -35,10 +37,21 @@ func (rf *Raft) readPersist(data []byte) {
 	var currentTerm int
 	var votedFor int
 	var log []*LogEntry
+	var snapIndex int
+	var snapTerm int
 	util.PanicIfErr(decoder.Decode(&currentTerm))
 	util.PanicIfErr(decoder.Decode(&votedFor))
 	util.PanicIfErr(decoder.Decode(&log))
+	util.PanicIfErr(decoder.Decode(&snapIndex))
+	util.PanicIfErr(decoder.Decode(&snapTerm))
 	rf.currentTerm = currentTerm
 	rf.votedFor = votedFor
 	rf.logs.log = log
+	if len(snapshot) > 0 {
+		rf.logs.snapshot = snapshot
+	} else {
+		rf.logs.snapshot = nil
+	}
+	rf.logs.snapIndex = snapIndex
+	rf.logs.snapTerm = snapTerm
 }

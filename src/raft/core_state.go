@@ -73,7 +73,7 @@ func (rf *Raft) initFollower() {
 
 	rf.currentTerm = zeroTerm
 	rf.votedFor = votedForNoOne
-	rf.logs = newEntries()
+	rf.logs = NewLogEntries()
 	rf.role = follower
 	rf.electionTimeout = util.NewCountdown(randElectionTimeout())
 	rf.heartbeatTimeout = nil
@@ -176,7 +176,7 @@ func (rf *Raft) candidate2Leader() {
 	rf.nextIndex = make([]int, len(rf.peers))
 	for i := 0; i < len(rf.peers); i++ {
 		if i != rf.me {
-			rf.nextIndex[i] = rf.logs.lastIndex() + 1
+			rf.nextIndex[i] = rf.logs.LastIndex() + 1
 		}
 	}
 	rf.matchIndex = make([]int, len(rf.peers))
@@ -188,7 +188,7 @@ func (rf *Raft) candidate2Leader() {
 func (rf *Raft) tryVoteFor(candidateId int, lastLogIndex int, lastLogTerm int) bool {
 	// if votedFor is null or candidateId,
 	// and candidate's log is at least as up-to-date as receiver's log, grant vote
-	if (rf.votedFor == votedForNoOne || rf.votedFor == candidateId) && rf.logs.isUpToDate(lastLogIndex, lastLogTerm) {
+	if (rf.votedFor == votedForNoOne || rf.votedFor == candidateId) && rf.logs.IsUpToDate(lastLogIndex, lastLogTerm) {
 		rf.votedFor = candidateId
 		rf.persist()
 		rf.resetElectionTimeout()
@@ -199,13 +199,18 @@ func (rf *Raft) tryVoteFor(candidateId int, lastLogIndex int, lastLogTerm int) b
 }
 
 func (rf *Raft) appendEntry(command interface{}) (int, int) {
-	index, term := rf.logs.append(&LogEntry{Term: rf.currentTerm, Command: command}), rf.currentTerm
+	index, term := rf.logs.Append(&LogEntry{Term: rf.currentTerm, Command: command}), rf.currentTerm
 	rf.persist()
 	return index, term
 }
 
 func (rf *Raft) amendEntries(index int, entries []*LogEntry) {
-	rf.logs.amend(index, entries)
+	rf.logs.Amend(index, entries)
+	rf.persist()
+}
+
+func (rf *Raft) updateSnapshot(index, term int, snapshot []byte) {
+	rf.logs.UpdateSnapshot(index, term, snapshot)
 	rf.persist()
 }
 

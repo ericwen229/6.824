@@ -12,6 +12,7 @@ var (
 		categoryState:     true,
 		categoryElection:  true,
 		categoryReplicate: true,
+		categoryCommit:    true,
 		categoryTest:      true,
 	}
 )
@@ -20,6 +21,7 @@ const (
 	categoryState     = "state"
 	categoryElection  = "elect"
 	categoryReplicate = "replicate"
+	categoryCommit    = "commit"
 	categoryTest      = "test"
 )
 
@@ -33,6 +35,10 @@ func (rf *Raft) logElection(format string, args ...interface{}) {
 
 func (rf *Raft) logReplicate(format string, args ...interface{}) {
 	debugLog(categoryReplicate, rf.me, format, args...)
+}
+
+func (rf *Raft) logCommit(format string, args ...interface{}) {
+	debugLog(categoryCommit, rf.me, format, args...)
 }
 
 func logTest(format string, args ...interface{}) {
