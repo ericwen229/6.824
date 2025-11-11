@@ -14,26 +14,37 @@ func (rf *Raft) applyLoop(applyCh chan ApplyMsg) {
 }
 
 func (rf *Raft) tryApply(applyCh chan ApplyMsg) {
-	var entriesToApply []*LogEntry
+	applyMsgList := rf.genApplyMsgList()
 
+	for _, msg := range applyMsgList {
+		if msg.CommandValid {
+			rf.logCommit("apply %d", msg.CommandIndex)
+		} else {
+			rf.logCommit("apply snapshot %d", msg.SnapshotIndex)
+		}
+		applyCh <- msg
+	}
+}
+
+func (rf *Raft) genApplyMsgList() []ApplyMsg {
 	rf.mu.Lock()
-	baseIndex := rf.lastApplied + 1
+	defer rf.mu.Unlock()
+
+	var msgList []ApplyMsg
+
 	for rf.commitIndex > rf.lastApplied {
 		rf.lastApplied++
-		entriesToApply = append(entriesToApply, rf.logs.Get(rf.lastApplied))
-	}
-	rf.mu.Unlock()
-
-	for i, entry := range entriesToApply {
-		rf.logCommit("apply %d -> %v", baseIndex+i, entry.Command)
-		applyCh <- ApplyMsg{
+		entry := rf.logs.Get(rf.lastApplied)
+		msgList = append(msgList, ApplyMsg{
 			CommandValid:  true,
 			Command:       entry.Command,
-			CommandIndex:  baseIndex + i,
-			SnapshotValid: false, // TODO
-			Snapshot:      nil,   // TODO
-			SnapshotTerm:  0,     // TODO
-			SnapshotIndex: 0,     // TODO
-		}
+			CommandIndex:  rf.lastApplied,
+			SnapshotValid: false,
+			Snapshot:      nil,
+			SnapshotTerm:  nanTerm,
+			SnapshotIndex: nanIndex,
+		})
 	}
+
+	return msgList
 }
