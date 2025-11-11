@@ -27,22 +27,68 @@ func (rf *Raft) initiateAgreement() {
 func (rf *Raft) initiateAgreementWithPeer(peerId int) {
 	nextIndex := rf.nextIndex[peerId]
 	matchIndex := rf.matchIndex[peerId]
-	req := &AppendEntriesArgs{
-		Term:         rf.currentTerm,
-		PrevLogIndex: nextIndex - 1,
-		PrevLogTerm:  rf.logs.PrevTerm(nextIndex),
-		Entries:      rf.logs.GetEntriesStartingFrom(nextIndex),
-		LeaderCommit: rf.commitIndex,
-	}
 
-	go func() {
-		resp := &AppendEntriesReply{}
-		if !rf.sendAppendEntries(peerId, req, resp) {
-			return
+	if rf.logs.IsInSnapshot(nextIndex) {
+		snapshot, snapshotIndex, snapshotTerm := rf.logs.GetSnapshot()
+		req := &InstallSnapshotArgs{
+			Term:          rf.currentTerm,
+			SnapshotIndex: snapshotIndex,
+			SnapshotTerm:  snapshotTerm,
+			Snapshot:      snapshot,
 		}
 
-		rf.handleAppendEntriesRespFromPeer(req, resp, peerId, nextIndex, matchIndex)
-	}()
+		go func() {
+			resp := &InstallSnapshotReply{}
+			if !rf.sendInstallSnapshot(peerId, req, resp) {
+				return
+			}
+
+			rf.handleInstallSnapshotRespFromPeer(req, resp, peerId, nextIndex, matchIndex)
+		}()
+	} else {
+		req := &AppendEntriesArgs{
+			Term:         rf.currentTerm,
+			PrevLogIndex: nextIndex - 1,
+			PrevLogTerm:  rf.logs.PrevTerm(nextIndex),
+			Entries:      rf.logs.GetEntriesStartingFrom(nextIndex),
+			LeaderCommit: rf.commitIndex,
+		}
+
+		go func() {
+			resp := &AppendEntriesReply{}
+			if !rf.sendAppendEntries(peerId, req, resp) {
+				return
+			}
+
+			rf.handleAppendEntriesRespFromPeer(req, resp, peerId, nextIndex, matchIndex)
+		}()
+	}
+}
+
+func (rf *Raft) handleInstallSnapshotRespFromPeer(
+	req *InstallSnapshotArgs, resp *InstallSnapshotReply, peerId int, oldNextIndex int, oldMatchIndex int) {
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
+
+	// if RPC request or response contains term T > currentTerm: set currentTerm = T, convert to follower
+	if resp.Term > rf.currentTerm {
+		rf.foundHigherTerm(resp.Term)
+		return
+	}
+
+	// out of date
+	if rf.currentTerm > req.Term ||
+		!rf.isLeader() ||
+		rf.nextIndex[peerId] != oldNextIndex ||
+		rf.matchIndex[peerId] != oldMatchIndex {
+		return
+	}
+
+	rf.matchIndex[peerId] = req.SnapshotIndex
+	rf.nextIndex[peerId] = req.SnapshotIndex + 1
+	rf.updateCommitIndex()
+
+	rf.logReplicate("post install snapshot: nextIndex %+v, matchIndex %+v", rf.nextIndex, rf.matchIndex)
 }
 
 func (rf *Raft) handleAppendEntriesRespFromPeer(
@@ -70,6 +116,8 @@ func (rf *Raft) handleAppendEntriesRespFromPeer(
 		rf.matchIndex[peerId] = rf.nextIndex[peerId] - 1
 		rf.updateCommitIndex()
 	} else {
+		rf.logReplicate("receive conflict from %d: index %d term %d", peerId, resp.ConflictIndex, resp.ConflictTerm)
+
 		// if AppendEntries fails because of log inconsistency: decrement nextIndex and retry
 		if resp.ConflictTerm == nanTerm {
 			rf.nextIndex[peerId] = resp.ConflictIndex
@@ -82,7 +130,7 @@ func (rf *Raft) handleAppendEntriesRespFromPeer(
 		}
 		rf.initiateAgreementWithPeer(peerId)
 	}
-	rf.logReplicate("nextIndex %+v, matchIndex %+v", rf.nextIndex, rf.matchIndex)
+	rf.logReplicate("post append entries: nextIndex %+v, matchIndex %+v", rf.nextIndex, rf.matchIndex)
 }
 
 func (rf *Raft) updateCommitIndex() {
@@ -170,6 +218,8 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 	// self is guaranteed to be follower from here
 
 	if !rf.logs.Match(args.PrevLogIndex, args.PrevLogTerm) {
+		rf.logReplicate("conflict: index %d term %d", args.PrevLogIndex, args.PrevLogTerm)
+
 		// reply false if log doesn't contain an entry at prevLogIndex whose term matches prevLogTerm
 		reply.Success = false
 
@@ -192,4 +242,38 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 	if args.LeaderCommit > rf.commitIndex {
 		rf.commitIndex = util.Min(args.LeaderCommit, args.PrevLogIndex+len(args.Entries))
 	}
+}
+
+func (rf *Raft) sendInstallSnapshot(server int, args *InstallSnapshotArgs, reply *InstallSnapshotReply) bool {
+	return rf.peers[server].Call("Raft.InstallSnapshot", args, reply)
+}
+
+type InstallSnapshotArgs struct {
+	Term          int
+	SnapshotIndex int
+	SnapshotTerm  int
+	Snapshot      []byte
+}
+
+type InstallSnapshotReply struct {
+	Term int
+}
+
+func (rf *Raft) InstallSnapshot(args *InstallSnapshotArgs, reply *InstallSnapshotReply) {
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
+
+	// default value
+	reply.Term = rf.currentTerm
+
+	// if RPC request or response contains term T > currentTerm: set currentTerm = T, convert to follower
+	if args.Term > rf.currentTerm {
+		rf.foundHigherTerm(args.Term)
+		reply.Term = rf.currentTerm
+	} else if args.Term < rf.currentTerm {
+		// reply immediately if term < currentTerm
+		return
+	}
+
+	rf.updateSnapshot(args.SnapshotIndex, args.SnapshotTerm, args.Snapshot)
 }

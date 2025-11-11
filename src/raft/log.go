@@ -76,12 +76,14 @@ func (l *LogEntries) PrevTerm(index int) int {
 	} else if index <= l.LastIndex() {
 		return l.Get(index).Term
 	} else { // index > l.LastIndex()
-		return nanTerm
+		panic(fmt.Errorf("invalid index: %d", index))
 	}
 }
 
 func (l *LogEntries) Get(index int) *LogEntry {
 	if l.snapshot != nil && index <= l.snapIndex {
+		panic(fmt.Errorf("invalid index: %d", index))
+	} else if index <= zeroIndex || index > l.LastIndex() {
 		panic(fmt.Errorf("invalid index: %d", index))
 	}
 
@@ -113,25 +115,31 @@ func (l *LogEntries) Amend(index int, entries []*LogEntry) {
 	}
 }
 
-func (l *LogEntries) UpdateSnapshot(index int, snapshot []byte) {
+func (l *LogEntries) UpdateSnapshot(index, term int, snapshot []byte) {
 	if index == l.snapIndex { // snapshot not updated
 		return
 	} else if index < l.snapIndex { // out of date snapshot
 		panic(fmt.Errorf("invalid index: %d", index))
 	}
 
-	term := l.Get(index).Term
+	if term == nanTerm {
+		term = l.Get(index).Term
+	}
 	newBase := l.index2i(index) + 1
 
 	l.snapshot = snapshot
 	l.snapIndex = index
 	l.snapTerm = term
-	l.log = l.log[newBase:]
+	if newBase < len(l.log) {
+		l.log = l.log[newBase:]
 
-	// deep copy to avoid memory leak
-	log := make([]*LogEntry, 0, len(l.log))
-	copy(log, l.log)
-	l.log = log
+		// deep copy to avoid memory leak
+		log := make([]*LogEntry, len(l.log))
+		copy(log, l.log)
+		l.log = log
+	} else {
+		l.log = nil
+	}
 }
 
 func (l *LogEntries) GetEntriesStartingFrom(index int) []*LogEntry {

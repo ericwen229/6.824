@@ -209,8 +209,8 @@ func (rf *Raft) amendEntries(index int, entries []*LogEntry) {
 	rf.persist()
 }
 
-func (rf *Raft) updateSnapshot(index int, snapshot []byte) {
-	rf.logs.UpdateSnapshot(index, snapshot)
+func (rf *Raft) updateSnapshot(index, term int, snapshot []byte) {
+	rf.logs.UpdateSnapshot(index, term, snapshot)
 	rf.persist()
 }
 

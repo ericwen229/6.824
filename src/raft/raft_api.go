@@ -129,5 +129,5 @@ func (rf *Raft) CondInstallSnapshot(lastIncludedTerm int, lastIncludedIndex int,
 // that index. Raft should now trim its log as much as possible.
 func (rf *Raft) Snapshot(index int, snapshot []byte) {
 	rf.logCommit("snapshot at %d", index)
-	rf.updateSnapshot(index, snapshot)
+	rf.updateSnapshot(index, nanTerm, snapshot)
 }
