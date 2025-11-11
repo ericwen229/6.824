@@ -62,6 +62,10 @@ func (l *LogEntries) Match(index int, term int) bool {
 	}
 }
 
+func (l *LogEntries) SnapshotIndex() int {
+	return l.snapIndex
+}
+
 func (l *LogEntries) PrevTerm(index int) int {
 	index--
 

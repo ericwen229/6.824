@@ -217,6 +217,16 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 
 	// self is guaranteed to be follower from here
 
+	snapIndex := rf.logs.SnapshotIndex()
+	if snapIndex != nanIndex {
+		if args.PrevLogIndex < snapIndex {
+			// leader lag behind, should continue from right after snapshot
+			reply.Success = false
+			reply.ConflictIndex = snapIndex + 1
+			return
+		}
+	}
+
 	if !rf.logs.Match(args.PrevLogIndex, args.PrevLogTerm) {
 		rf.logReplicate("conflict: index %d term %d", args.PrevLogIndex, args.PrevLogTerm)
 
