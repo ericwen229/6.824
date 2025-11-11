@@ -1,6 +1,7 @@
 package raft
 
 import (
+	"fmt"
 	"time"
 )
 
@@ -32,18 +33,43 @@ func (rf *Raft) genApplyMsgList() []ApplyMsg {
 
 	var msgList []ApplyMsg
 
-	for rf.commitIndex > rf.lastApplied {
-		rf.lastApplied++
-		entry := rf.logs.Get(rf.lastApplied)
+	if rf.lastApplied > rf.commitIndex {
+		panic(fmt.Errorf("invalid apply index: %d", rf.lastApplied))
+	} else if rf.lastApplied == rf.commitIndex {
+		return msgList
+	}
+
+	// now we're sure we have something to apply
+
+	nextIndex := rf.lastApplied + 1
+	if rf.logs.IsInSnapshot(nextIndex) {
+		// apply snapshot
+		snapshot, snapIndex, snapTerm := rf.logs.GetSnapshot()
+		rf.lastApplied = snapIndex
 		msgList = append(msgList, ApplyMsg{
-			CommandValid:  true,
-			Command:       entry.Command,
-			CommandIndex:  rf.lastApplied,
-			SnapshotValid: false,
-			Snapshot:      nil,
-			SnapshotTerm:  nanTerm,
-			SnapshotIndex: nanIndex,
+			CommandValid:  false,
+			Command:       nil,
+			CommandIndex:  nanIndex,
+			SnapshotValid: true,
+			Snapshot:      snapshot,
+			SnapshotTerm:  snapTerm,
+			SnapshotIndex: snapIndex,
 		})
+	} else {
+		// apply logs
+		for rf.commitIndex > rf.lastApplied {
+			rf.lastApplied++
+			entry := rf.logs.Get(rf.lastApplied)
+			msgList = append(msgList, ApplyMsg{
+				CommandValid:  true,
+				Command:       entry.Command,
+				CommandIndex:  rf.lastApplied,
+				SnapshotValid: false,
+				Snapshot:      nil,
+				SnapshotTerm:  nanTerm,
+				SnapshotIndex: nanIndex,
+			})
+		}
 	}
 
 	return msgList

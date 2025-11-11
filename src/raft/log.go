@@ -88,6 +88,17 @@ func (l *LogEntries) Get(index int) *LogEntry {
 	return l.log[l.index2i(index)]
 }
 
+func (l *LogEntries) IsInSnapshot(index int) bool {
+	return l.snapshot != nil && index > zeroIndex && index <= l.snapIndex
+}
+
+func (l *LogEntries) GetSnapshot() ([]byte, int, int) {
+	if l.snapshot == nil {
+		panic("log has no snapshot")
+	}
+	return l.snapshot, l.snapIndex, l.snapTerm
+}
+
 func (l *LogEntries) Amend(index int, entries []*LogEntry) {
 	if l.snapshot != nil && index <= l.snapIndex {
 		panic(fmt.Errorf("invalid index: %d", index))
